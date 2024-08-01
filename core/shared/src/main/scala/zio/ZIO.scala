@@ -276,7 +276,7 @@ sealed trait ZIO[-R, +E, +A]
 
       for {
         r     <- ZIO.environment[R]
-        cache <- Ref.Synchronize.make[Option[(Long, Promise[E, A])]](None)
+        cache <- Ref.Synchronized.make[Option[(Long, Promise[E, A])]](None)
       } yield (get(cache).provideEnvironment(r), invalidate(cache))
     }
 

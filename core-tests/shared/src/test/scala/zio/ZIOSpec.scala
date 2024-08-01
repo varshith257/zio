@@ -234,7 +234,6 @@ object ZIOSpec extends ZIOBaseSpec {
           _                 <- ZIO.debug("Cache invalidated")
           callFiber         <- call.fork
           _                 <- ZIO.debug("Forked callFiber")
-
           _      <- startWaiting.await
           _      <- ZIO.debug("Awaited startWaiting promise")
           _      <- TestClock.adjust(1.second)

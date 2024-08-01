@@ -263,6 +263,7 @@ sealed trait ZIO[-R, +E, +A]
 
       def get(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): ZIO[R, E, A] =
         ZIO.uninterruptibleMask { restore =>
+          ZIO.debug("Entering get method")
           Clock.nanoTime.flatMap { time =>
             cache.updateSomeAndGetZIO {
               case None                              => compute(time)
@@ -278,11 +279,12 @@ sealed trait ZIO[-R, +E, +A]
         }
 
       def invalidate(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): UIO[Unit] =
-        cache.set(None)
+        ZIO.debug("Invalidating cache") *> cache.set(None)
 
       for {
         r     <- ZIO.environment[R]
         cache <- Ref.Synchronized.make[Option[(Long, Promise[E, A])]](None)
+        _     <- ZIO.debug("Created cache ref")
       } yield (get(cache).provideEnvironment(r), invalidate(cache))
     }
 

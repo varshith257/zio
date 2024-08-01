@@ -181,6 +181,38 @@ object ZIOSpec extends ZIOBaseSpec {
           d     <- cache
         } yield assert(a)(equalTo(b)) && assert(b)(not(equalTo(c))) && assert(c)(equalTo(d))
       },
+      test("correctly handles an infinite duration time to live") {
+        for {
+          ref            <- Ref.make(0)
+          getAndIncrement = ref.modify(curr => (curr, curr + 1))
+          cached         <- getAndIncrement.cached(Duration.Infinity)
+          a              <- cached
+          b              <- cached
+          c              <- cached
+        } yield assert((a, b, c))(equalTo((0, 0, 0)))
+      }
+    ),
+    suite("cachedInvalidate")(
+      test("returns new instances after duration") {
+        def incrementAndGet(ref: Ref[Int]): UIO[Int] = ref.updateAndGet(_ + 1)
+        for {
+          ref                 <- Ref.make(0)
+          tuple               <- incrementAndGet(ref).cachedInvalidate(60.minutes)
+          (cached, invalidate) = tuple
+          a                   <- cached
+          _                   <- TestClock.adjust(59.minutes)
+          b                   <- cached
+          _                   <- invalidate
+          c                   <- cached
+          _                   <- TestClock.adjust(1.minute)
+          d                   <- cached
+          _                   <- TestClock.adjust(59.minutes)
+          e                   <- cached
+        } yield assert(a)(equalTo(b)) &&
+          assert(b)(not(equalTo(c))) &&
+          assert(c)(equalTo(d)) &&
+          assert(d)(not(equalTo(e)))
+      },
       test("cachedInvalidate blocks cancelation") {
         for {
           startWaiting <- Promise.make[Nothing, Unit]

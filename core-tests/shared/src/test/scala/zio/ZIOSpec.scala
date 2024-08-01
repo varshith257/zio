@@ -215,20 +215,21 @@ object ZIOSpec extends ZIOBaseSpec {
       },
       test("cachedInvalidate blocks cancelation") {
         for {
-          startWaiting <- Promise.make[Nothing, Unit]
-          ref          <- Ref.make(true)
-          (call, invalidate) <- ZIO
-                                  .ifZIO(ref.get)(
-                                    onTrue = ref.set(false) *> ref.get,
-                                    onFalse = startWaiting.succeed(()) *> ZIO.never *> ref.get
-                                  )
-                                  .cachedInvalidate(Duration.Infinity)
+          promise <- Promise.make[Nothing, Unit]
+          ref     <- Ref.make(true)
+          (call, invalidate) <- (ZIO.suspendSucceed {
+                                  ref.get.flatMap {
+                                    if (_) promise.await.as(false)
+                                    else ZIO.succeed(true)
+                                  }
+                                }).cachedInvalidate(Duration.Infinity)
           first     <- call
           _         <- invalidate
           callFiber <- call.fork
-          _         <- startWaiting.await
-          _ <- callFiber.interrupt // Here - test never ends
-        } yield assert(first)(Assertion.equalTo(false))
+          _         <- ref.set(false)
+          _         <- promise.succeed(())
+          second    <- callFiber.join
+        } yield assertTrue(first) && assertTrue(!second)
       }
     ),
     suite("catchNonFatalOrDie")(

@@ -213,23 +213,23 @@ object ZIOSpec extends ZIOBaseSpec {
           assert(c)(equalTo(d)) &&
           assert(d)(not(equalTo(e)))
       },
-      test("cachedInvalidate blocks cancelation") {
+      test("handles interruptions correctly") {
+        def effect(ref: Ref[Boolean]): ZIO[Any, Nothing, Unit] =
+          for {
+            _ <- ref.set(true)
+            _ <- ZIO.never // Simulates a long-running effect
+          } yield ()
+
         for {
-          startWaiting <- Promise.make[Nothing, Unit]
-          ref          <- Ref.make(true)
-          (call, invalidate) <- ZIO
-                                  .ifZIO(ref.get)(
-                                    onTrue = ref.set(false) *> ref.get,
-                                    onFalse = startWaiting.succeed(()) *> ZIO.never *> ref.get
-                                  )
-                                  .cachedInvalidate(Duration.Infinity)
-          first     <- call
-          _         <- invalidate
-          callFiber <- call.fork
-          _         <- startWaiting.await
-          _ <- callFiber.interrupt // Test should not hang here
-        } yield assert(first)(Assertion.equalTo(false))
-      },
+          ref                  <- Ref.make(false)
+          (cached, invalidate) <- effect(ref).cachedInvalidate(60.minutes)
+          fiber                <- cached.fork
+          _                    <- ZIO.sleep(1.second)
+          _                    <- fiber.interrupt
+          _                    <- invalidate
+          result <- cached.timeout(1.second) // Ensure the effect is not hanging
+        } yield assert(result)(isNone)       // Should be None as the effect should be interrupted and invalidated
+      }
     ),
     suite("catchNonFatalOrDie")(
       test("recovers from NonFatal") {

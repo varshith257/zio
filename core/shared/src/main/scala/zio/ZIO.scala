@@ -270,6 +270,7 @@ sealed trait ZIO[-R, +E, +A]
               case None => ZIO.dieMessage("Unexpected cached state")
             }
           }
+        }
 
       def invalidate(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): UIO[Unit] =
         cache.set(None)

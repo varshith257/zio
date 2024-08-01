@@ -212,7 +212,24 @@ object ZIOSpec extends ZIOBaseSpec {
           assert(b)(not(equalTo(c))) &&
           assert(c)(equalTo(d)) &&
           assert(d)(not(equalTo(e)))
-      }
+      },
+      test("cachedInvalidate blocks cancelation") {
+        for {
+          startWaiting <- Promise.make[Nothing, Unit]
+          ref          <- Ref.make(true)
+          (call, invalidate) <- ZIO
+                                  .ifZIO(ref.get)(
+                                    onTrue = ref.set(false) *> ref.get,
+                                    onFalse = startWaiting.succeed(()) *> ZIO.never *> ref.get
+                                  )
+                                  .cachedInvalidate(Duration.Infinity)
+          first     <- call
+          _         <- invalidate
+          callFiber <- call.fork
+          _         <- startWaiting.await
+          _ <- callFiber.interrupt // Test should not hang here
+        } yield assert(first)(Assertion.equalTo(false))
+      },
     ),
     suite("catchNonFatalOrDie")(
       test("recovers from NonFatal") {

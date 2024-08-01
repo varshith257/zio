@@ -219,8 +219,8 @@ object ZIOSpec extends ZIOBaseSpec {
           ref          <- Ref.make(true)
           result <- ZIO
                       .ifZIO(ref.get)(
-                        onTrue = ref.set(false) *> ref.get,
-                        onFalse = startWaiting.succeed(()) *> ZIO.never *> ref.get
+                        onTrue = ref.set(false) *> ZIO.succeed(false),
+                        onFalse = startWaiting.succeed(()) *> ZIO.never
                       )
                       .cachedInvalidate(Duration.Infinity)
           (call, invalidate) = result
@@ -229,7 +229,8 @@ object ZIOSpec extends ZIOBaseSpec {
           callFiber         <- call.fork
           _                 <- startWaiting.await
           _                 <- callFiber.interrupt
-        } yield assert(first)(equalTo(false))
+          second            <- callFiber.join
+        } yield assert(first)(equalTo(false)) && assert(second)(equalTo(false))
       }
       // test("handles interruptions correctly") {
       //   for {

@@ -228,7 +228,7 @@ object ZIOSpec extends ZIOBaseSpec {
           _                 <- ZIO.log("Created result from cachedInvalidate")
           (call, invalidate) = result
           first             <- call
-          _                 <- ZIO.log(s"First call result: $first")
+          _                 <- ZIO.log("First call result: $first")
           _                 <- invalidate
           _                 <- ZIO.log("Cache invalidated")
           callFiber         <- call.fork
@@ -240,7 +240,7 @@ object ZIOSpec extends ZIOBaseSpec {
           _      <- callFiber.interrupt
           _      <- ZIO.log("Interrupted callFiber")
           second <- callFiber.join
-          _      <- ZIO.log(s"Second call result: $second")
+          _      <- ZIO.log("Second call result: $second")
         } yield assert(first)(equalTo(false)) && assert(second)(equalTo(false))
       }
       // test("handles interruptions correctly") {

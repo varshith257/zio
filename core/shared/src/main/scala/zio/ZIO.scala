@@ -267,7 +267,7 @@ sealed trait ZIO[-R, +E, +A]
             }.flatMap {
               case Some((_, promise)) =>
                 restore(promise.await).onInterrupt(cache.set(None).ignore)
-              case None => ZIO.dieMessage("Unexpected cached state")
+              case None => ZIO.dieMessage("Unexpected cachedstate")
             }
           }
         }

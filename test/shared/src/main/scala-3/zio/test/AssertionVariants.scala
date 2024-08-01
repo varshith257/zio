@@ -68,23 +68,23 @@ trait AssertionVariants {
   /**
    * Makes a new assertion that requires a value equal the specified value.
    */
-    final def equalTo[A](expected: A): Assertion[A] =
-      Assertion[A](
-        TestArrow
-          .make[A, Boolean] { actual =>
-            val result = (actual, expected) match {
-              case (left: Array[_], right: Array[_]) => left.sameElements[Any](right)
-              case (left: CharSequence, right: CharSequence) => left.toString == right.toString
-              case (left, right)                     => left == right
-            }
-            TestTrace.boolean(result) {
-              if(expected.isInstanceOf[Product]){
-                M.text(diffProduct(actual, expected))
-              }else{
-                M.pretty(actual) + M.equals + M.pretty(expected)
-              }
+  final def equalTo[A](expected: A): Assertion[A] =
+    Assertion[A](
+      TestArrow
+        .make[A, Boolean] { actual =>
+          val result = (actual, expected) match {
+            case (left: Array[_], right: Array[_])         => left.sameElements[Any](right)
+            case (left: CharSequence, right: CharSequence) => left.toString == right.toString
+            case (left, right)                             => left == right
+          }
+          TestTrace.boolean(result) {
+            if (expected.isInstanceOf[Product]) {
+              M.text(diffProduct(actual, expected))
+            } else {
+              M.pretty(actual) + M.equals + M.pretty(expected)
             }
           }
-          .withCode("equalTo", valueArgument(expected))
-      )
+        }
+        .withCode("equalTo", valueArgument(expected))
+    )
 }

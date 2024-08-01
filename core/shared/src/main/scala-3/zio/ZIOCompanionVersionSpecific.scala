@@ -1,6 +1,7 @@
 package zio
 
-import zio.ZIO.{Async, asyncInterrupt, blocking}
+import zio.ZIO.Async
+import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 import java.io.IOException
 
@@ -21,7 +22,13 @@ trait ZIOCompanionVersionSpecific {
     register: Unsafe ?=> (ZIO[R, E, A] => Unit) => Unit,
     blockingOn: => FiberId = FiberId.None
   )(implicit trace: Trace): ZIO[R, E, A] =
-    Async(trace, { k => Unsafe.unsafe(register)(k); null.asInstanceOf[ZIO[R, E, A]] }, () => blockingOn)
+    Async(
+      trace,
+      { k =>
+        Unsafe.unsafe(register)(k); null.asInstanceOf[ZIO[R, E, A]]
+      },
+      () => blockingOn
+    )
 
   /**
    * Converts an asynchronous, callback-style API into a ZIO effect, which will
@@ -149,6 +156,22 @@ trait ZIOCompanionVersionSpecific {
    */
   def attemptBlockingIO[A](effect: Unsafe ?=> A)(implicit trace: Trace): IO[IOException, A] =
     attemptBlocking(effect).refineToOrDie[IOException]
+
+  /**
+   * Wraps the provided effect in a catch-try block. Useful for handling cases
+   * where the user-provided effect might throw outside the ZIO effect, but we
+   * don't want to incur the performance penalty from the additional flatMap in
+   * `ZIO.suspend`.
+   */
+  inline protected def attemptOrDieZIO[R, E, A](inline effect: ZIO[R, E, A])(using Trace): ZIO[R, E, A] =
+    try effect
+    catch {
+      case t: Throwable =>
+        ZIO.isFatalWith { isFatal =>
+          if (!isFatal(t)) Exit.die(t)
+          else throw t
+        }
+    }
 
   /**
    * Returns an effect that, when executed, will cautiously run the provided

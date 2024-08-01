@@ -216,17 +216,18 @@ object ZIOSpec extends ZIOBaseSpec {
       test("handles interruptions correctly") {
         for {
           ref <- Ref.make(true)
-          (call, invalidate) <- (ZIO.suspendSucceed {
-                                  ref.get.flatMap {
-                                    if (_) ZIO.never
-                                    else ZIO.succeed(true)
-                                  }
-                                }).cachedInvalidate(Duration.Infinity)
-          fiber <- call.fork
-          _     <- fiber.interrupt
-          _     <- ref.set(false)
-          _     <- invalidate
-          res   <- call.timeout(1.millis)
+          result <- (ZIO.suspendSucceed {
+                      ref.get.flatMap {
+                        if (_) ZIO.never
+                        else ZIO.succeed(true)
+                      }
+                    }).cachedInvalidate(Duration.Infinity)
+          (call, invalidate) = result
+          fiber             <- call.fork
+          _                 <- fiber.interrupt
+          _                 <- ref.set(false)
+          _                 <- invalidate
+          res               <- call.timeout(1.millis)
         } yield assertTrue(res.isEmpty)
       }
     ),

@@ -255,7 +255,7 @@ sealed trait ZIO[-R, +E, +A]
       def compute(start: Long): ZIO[R, Nothing, Option[(Long, Promise[E, A])]] =
         for {
           p <- Promise.make[E, A]
-          _ <- self.intoPromise(p).onInterrupt(p.fail(new InterruptedException).ignore)
+          _ <- self.intoPromise(p).onInterrupt(p.interrupt.ignore)
         } yield Some((start + timeToLive.toNanos, p))
 
       def get(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): ZIO[R, E, A] =

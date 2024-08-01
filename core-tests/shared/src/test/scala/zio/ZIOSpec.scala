@@ -213,23 +213,21 @@ object ZIOSpec extends ZIOBaseSpec {
           assert(c)(equalTo(d)) &&
           assert(d)(not(equalTo(e)))
       },
-      test("cachedInvalidate blocks cancelation") {
+      test("handles interruptions correctly") {
         for {
-          promise <- Promise.make[Nothing, Unit]
-          ref     <- Ref.make(true)
+          ref <- Ref.make(true)
           (call, invalidate) <- (ZIO.suspendSucceed {
                                   ref.get.flatMap {
-                                    if (_) promise.await.as(false)
+                                    if (_) ZIO.never
                                     else ZIO.succeed(true)
                                   }
                                 }).cachedInvalidate(Duration.Infinity)
-          first     <- call
-          _         <- invalidate
-          callFiber <- call.fork
-          _         <- ref.set(false)
-          _         <- promise.succeed(())
-          second    <- callFiber.join
-        } yield assertTrue(first) && assertTrue(!second)
+          fiber <- call.fork
+          _     <- fiber.interrupt
+          _     <- ref.set(false)
+          _     <- invalidate
+          res   <- call.timeout(1.millis)
+        } yield assertTrue(res.isEmpty)
       }
     ),
     suite("catchNonFatalOrDie")(

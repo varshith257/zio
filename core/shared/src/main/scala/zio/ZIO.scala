@@ -255,7 +255,10 @@ sealed trait ZIO[-R, +E, +A]
       def compute(start: Long): ZIO[R, Nothing, Option[(Long, Promise[E, A])]] =
         for {
           p <- Promise.make[E, A]
-          _ <- self.intoPromise(p).onInterrupt(p.interrupt.ignore)
+          _ <- ZIO.debug("Created promise in compute")
+          _ <- self.intoPromise(p).onInterrupt {
+                 ZIO.debug("Promise interrupted") *> p.interrupt.ignore
+               }
         } yield Some((start + timeToLive.toNanos, p))
 
       def get(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): ZIO[R, E, A] =
@@ -266,7 +269,9 @@ sealed trait ZIO[-R, +E, +A]
               case Some((end, _)) if end - time <= 0 => compute(time)
             }.flatMap {
               case Some((_, promise)) =>
-                restore(promise.await).onInterrupt(cache.set(None).ignore)
+                restore(promise.await).onInterrupt {
+                  ZIO.debug("Await interrupted") *> cache.set(None).ignore
+                }
               case None => ZIO.dieMessage("Unexpected cachedstate")
             }
           }

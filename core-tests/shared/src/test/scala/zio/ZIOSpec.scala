@@ -237,8 +237,8 @@ object ZIOSpec extends ZIOBaseSpec {
 
           _      <- startWaiting.await
           _      <- ZIO.debug("Awaited startWaiting promise")
-          _      <- ZIO.debug("Interrupting callFiber") *> callFiber.interrupt
           _      <- TestClock.adjust(1.second)
+          _      <- ZIO.debug("Interrupting callFiber") *> callFiber.interrupt
           second <- callFiber.join
           _      <- ZIO.debug(s"Second call result: $second")
         } yield assert(first)(equalTo(false)) && assert(second)(equalTo(false))

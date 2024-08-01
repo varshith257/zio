@@ -228,7 +228,7 @@ object ZIOSpec extends ZIOBaseSpec {
           _                 <- invalidate
           callFiber         <- call.fork
           _                 <- startWaiting.await
-          _                 <- callFiber.interrupt
+          _                 <- ZIO.debug("Interrupting callFiber") *> callFiber.interrupt
           second            <- callFiber.join
         } yield assert(first)(equalTo(false)) && assert(second)(equalTo(false))
       }

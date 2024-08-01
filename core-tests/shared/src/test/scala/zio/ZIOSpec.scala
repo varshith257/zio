@@ -216,20 +216,30 @@ object ZIOSpec extends ZIOBaseSpec {
       test("cachedInvalidate blocks cancelation") {
         for {
           startWaiting <- Promise.make[Nothing, Unit]
+          _            <- ZIO.debug("Created startWaiting Promise")
           ref          <- Ref.make(true)
+          _            <- ZIO.debug("Created ref")
           result <- ZIO
                       .ifZIO(ref.get)(
                         onTrue = ref.set(false) *> ZIO.succeed(false),
                         onFalse = startWaiting.succeed(()) *> ZIO.never
                       )
                       .cachedInvalidate(Duration.Infinity)
+          _ <- ZIO.debug("Created result from cachedInvalidate")
+
           (call, invalidate) = result
           first             <- call
+          _                 <- ZIO.debug(s"First call result: $first")
           _                 <- invalidate
+          _                 <- ZIO.debug("Cache invalidated")
           callFiber         <- call.fork
-          _                 <- startWaiting.await
-          _                 <- ZIO.debug("Interrupting callFiber") *> callFiber.interrupt
-          second            <- callFiber.join
+          _                 <- ZIO.debug("Forked callFiber")
+
+          _      <- startWaiting.await
+          _      <- ZIO.debug("Awaited startWaiting promise")
+          _      <- ZIO.debug("Interrupting callFiber") *> callFiber.interrupt
+          second <- callFiber.join
+          _      <- ZIO.debug(s"Second call result: $second")
         } yield assert(first)(equalTo(false)) && assert(second)(equalTo(false))
       }
       // test("handles interruptions correctly") {

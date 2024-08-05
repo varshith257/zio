@@ -108,7 +108,7 @@ object TestClockSpecJVM extends ZIOBaseSpec {
                                ZIO.logInfo("Task started...") *>
                                  clock.sleep(2.seconds) *>
                                  clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _)) *>
-                                 ZIO.logInfo(s"Task completed at time: ${now}")
+                                 ZIO.logInfo("Task completed")
                              }.getOrThrowFiberFailure()
                            }
                        },

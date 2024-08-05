@@ -105,7 +105,7 @@ object TestClockSpecJVM extends ZIOBaseSpec {
                          def run(): Unit =
                            Unsafe.unsafe { implicit unsafe =>
                              runtime.unsafe.run {
-                               ZIO.logInfo("Task started...") *>
+                               ZIO.logInfo("Task started..") *>
                                  clock.sleep(2.seconds) *>
                                  clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _)) *>
                                  ZIO.logInfo("Task completed")

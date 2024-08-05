@@ -98,26 +98,41 @@ object TestClockSpecJVM extends ZIOBaseSpec {
             clock                   <- ZIO.clock
             scheduler               <- ZIO.blocking(Clock.scheduler)
             scheduledExecutorService = scheduler.asScheduledExecutorService
-            future <- ZIO.succeed {
+            _ <- ZIO.logInfo("Scheduling task...") *>
+                   ZIO.succeed {
+                     scheduledExecutorService.scheduleAtFixedRate(
+                       new Runnable {
+                         def run(): Unit =
+                           Unsafe.unsafe { implicit unsafe =>
+                             runtime.unsafe.run {
+                               ZIO.logInfo("Task started...") *>
+                                 clock.sleep(2.seconds) *>
+                                 clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _)) *>
+                                 ZIO.logInfo(s"Task completed at time: ${now}")
+                             }.getOrThrowFiberFailure()
+                           }
+                       },
+                       3,
+                       5,
+                       TimeUnit.SECONDS
+                     )
+                   }
+            _ <- TestClock.adjust(6.seconds)
+            future <- ZIO.succeed(
                         scheduledExecutorService.scheduleAtFixedRate(
                           new Runnable {
-                            def run(): Unit =
-                              Unsafe.unsafe { implicit unsafe =>
-                                runtime.unsafe.run {
-                                  clock.sleep(2.seconds) *>
-                                    clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _))
-                                }.getOrThrowFiberFailure()
-                              }
+                            def run(): Unit = println("Task running")
                           },
                           3,
                           5,
                           TimeUnit.SECONDS
                         )
-                      }
+                      )
             _      <- TestClock.adjust(7.seconds)
             _      <- ZIO.succeed(future.cancel(false))
             _      <- TestClock.adjust(11.seconds)
             values <- ref.get
+            _      <- ZIO.logInfo(s"Values after interruption: $values")
           } yield assert(values.reverse)(equalTo(List(5L)))
         }
       )

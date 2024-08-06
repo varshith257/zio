@@ -98,7 +98,7 @@ object TestClockSpecJVM extends ZIOBaseSpec {
             clock                   <- ZIO.clock
             scheduler               <- ZIO.blocking(Clock.scheduler)
             scheduledExecutorService = scheduler.asScheduledExecutorService
-            _ <- ZIO.logInfo("Scheduling task...") *>
+            future <- ZIO.logInfo("Scheduling task...") *>
                    ZIO.succeed {
                      scheduledExecutorService.scheduleAtFixedRate(
                        new Runnable {

@@ -117,17 +117,6 @@ object TestClockSpecJVM extends ZIOBaseSpec {
                        TimeUnit.SECONDS
                      )
                    }
-            _ <- TestClock.adjust(6.seconds)
-            future <- ZIO.succeed(
-                        scheduledExecutorService.scheduleAtFixedRate(
-                          new Runnable {
-                            def run(): Unit = println("Task running")
-                          },
-                          3,
-                          5,
-                          TimeUnit.SECONDS
-                        )
-                      )
             _      <- TestClock.adjust(7.seconds)
             _      <- ZIO.succeed(future.cancel(false))
             _      <- TestClock.adjust(11.seconds)

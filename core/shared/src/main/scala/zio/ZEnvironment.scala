@@ -29,7 +29,7 @@ final class ZEnvironment[+R] private (
   private val cache: ConcurrentHashMap[LightTypeTag, Any],
   private val scope: Scope
 ) extends Serializable { self =>
-  import ZEnvironment.{MissingService, ScopeTag, TaggedAny}
+  import ZEnvironment.{ScopeTag, TaggedAny, UnitAny}
 
   @deprecated("Kept for binary compatibility only. Do not use", "2.1.2")
   private[ZEnvironment] def this(map: Map[LightTypeTag, Any], index: Int, cache: Map[LightTypeTag, Any] = Map.empty) =
@@ -60,7 +60,8 @@ final class ZEnvironment[+R] private (
 
   override def equals(that: Any): Boolean = that match {
     case that: ZEnvironment[_] =>
-      if (self.scope ne that.scope) false
+      if (self eq that) true
+      else if (self.scope ne that.scope) false
       else if (self.map eq that.map) true
       else if (self.map.size != that.map.size) false
       else self.hashCode == that.hashCode
@@ -242,19 +243,17 @@ final class ZEnvironment[+R] private (
         new ZEnvironment(map.updated(tag, a), cache = newCache, scope = scope)
       }
 
-      def get[A](tag: LightTypeTag)(implicit unsafe: Unsafe): A =
-        try {
-          getUnsafe(tag)
-        } catch {
-          case MissingService => throw new Error(s"Defect in zio.ZEnvironment: Could not find ${tag} inside ${self}")
-        }
+      def get[A](tag: LightTypeTag)(implicit unsafe: Unsafe): A = {
+        val value = getUnsafe[A](tag)
+        if (value == null) throw new Error(s"Defect in zio.ZEnvironment: Could not find ${tag} inside ${self}")
+        else value
+      }
 
-      private[ZEnvironment] def getOrElse[A](tag: LightTypeTag, default: => A)(implicit unsafe: Unsafe): A =
-        try {
-          getUnsafe(tag)
-        } catch {
-          case MissingService => default
-        }
+      private[ZEnvironment] def getOrElse[A](tag: LightTypeTag, default: => A)(implicit unsafe: Unsafe): A = {
+        val value = getUnsafe[A](tag)
+        if (value == null) default
+        else value
+      }
 
       private[this] def getUnsafe[A](tag: LightTypeTag)(implicit unsafe: Unsafe): A = {
         val fromCache = self.cache.get(tag)
@@ -263,7 +262,7 @@ final class ZEnvironment[+R] private (
         else if ((scope ne null) && isScopeTag(tag))
           scope.asInstanceOf[A]
         else if (self.isEmpty && tag == TaggedAny)
-          null.asInstanceOf[A]
+          UnitAny.asInstanceOf[A]
         else {
           val it      = self.map.reverseIterator
           var service = null.asInstanceOf[A]
@@ -273,12 +272,10 @@ final class ZEnvironment[+R] private (
               service = entry.asInstanceOf[A]
             }
           }
-          if (service == null) {
-            throw MissingService
-          } else {
+          if (service != null) {
             self.cache.put(tag, service)
-            service
           }
+          service
         }
       }
 
@@ -358,6 +355,7 @@ object ZEnvironment {
       scope = null
     )
 
+  @deprecated("kept for bin-compat only")
   private case object MissingService extends ControlThrowable
 
   // Can't use scala -> java collection conversions because they don't cross compile to Scala 2.12.
@@ -393,8 +391,14 @@ object ZEnvironment {
             case _: UpdateService[?, ?]   => loop(env, patches.tail)
           }
 
-      if (self eq empty0) environment.asInstanceOf[ZEnvironment[Out]]
-      else loop(environment, self.asInstanceOf[Patch[Any, Any]] :: Nil).asInstanceOf[ZEnvironment[Out]]
+      val env0 = environment.asInstanceOf[ZEnvironment[Out]]
+      if (isEmpty) env0
+      else {
+        val out = loop(environment, self.asInstanceOf[Patch[Any, Any]] :: Nil).asInstanceOf[ZEnvironment[Out]]
+        // Unfortunately we can't rely on eq here. However, the ZEnvironment equals method uses a cached hashCode
+        // so it's pretty fast
+        if (env0 == out) env0 else out
+      }
     }
 
     /**
@@ -403,6 +407,11 @@ object ZEnvironment {
      */
     def combine[Out2](that: Patch[Out, Out2]): Patch[In, Out2] =
       AndThen(self, that)
+
+    /**
+     * Boolean flag indicating whether the patch is empty.
+     */
+    def isEmpty: Boolean = self.isInstanceOf[Empty[?]]
   }
 
   object Patch {
@@ -493,4 +502,7 @@ object ZEnvironment {
 
   private val TaggedAny: LightTypeTag =
     taggedTagType(EnvironmentTag[Any])
+
+  // For some reason we get a SIGFAULT in Scala Native if we don't do this
+  private val UnitAny: Any = ()
 }

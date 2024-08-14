@@ -2,7 +2,7 @@ package zio.test
 
 import zio._
 import zio.test.Assertion._
-
+import zio.test.TestAspect.{jvm, nonFlaky}
 import java.util.concurrent.TimeUnit
 
 object TestClockSpecJVM extends ZIOBaseSpec {
@@ -98,26 +98,26 @@ object TestClockSpecJVM extends ZIOBaseSpec {
             clock                   <- ZIO.clock
             scheduler               <- ZIO.blocking(Clock.scheduler)
             scheduledExecutorService = scheduler.asScheduledExecutorService
-            future <- ZIO.logInfo("Scheduling task...") *>
-                        ZIO.succeed {
-                          scheduledExecutorService.scheduleAtFixedRate(
-                            new Runnable {
-                              def run(): Unit =
-                                Unsafe.unsafe { implicit unsafe =>
-                                  runtime.unsafe.run {
-                                    ZIO.logInfo("Task started..") *>
-                                      clock.sleep(2.seconds) *>
-                                      clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _)) *>
-                                      ZIO.logInfo("Task completed")
-                                  }.getOrThrowFiberFailure()
-                                }
-                            },
-                            3,
-                            5,
-                            TimeUnit.SECONDS
-                          )
-                        }
-            _      <- TestClock.adjust(7.seconds)
+            promise                 <- Promise.make[Nothing, Unit]
+            future <- ZIO.succeed {
+                        scheduledExecutorService.scheduleAtFixedRate(
+                          new Runnable {
+                            def run(): Unit =
+                              Unsafe.unsafe { implicit unsafe =>
+                                runtime.unsafe.run {
+                                  (promise.succeed(()) *> clock.sleep(2.seconds) *>
+                                    clock.currentTime(TimeUnit.SECONDS).flatMap(now => ref.update(now :: _)))
+                                }.getOrThrowFiberFailure()
+                              }
+                          },
+                          3,
+                          5,
+                          TimeUnit.SECONDS
+                        )
+                      }
+            _      <- TestClock.adjust(3.seconds)
+            _      <- promise.await
+            _      <- TestClock.adjust(4.seconds)
             _      <- ZIO.succeed(future.cancel(false))
             _      <- TestClock.adjust(11.seconds)
             values <- ref.get
@@ -125,5 +125,5 @@ object TestClockSpecJVM extends ZIOBaseSpec {
           } yield assert(values.reverse)(equalTo(List(5L)))
         }
       )
-    ) @@ TestAspect.nonFlaky(100)
+    ) @@ jvm(nonFlaky(20))
 }

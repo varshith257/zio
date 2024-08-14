@@ -57,6 +57,36 @@ object ZEnvironmentSpec extends ZIOBaseSpec {
       val pruned = env.prune[Foo & Bar]
 
       assertTrue(env == pruned)
+    },
+    test("get[Any] on an empty ZEnvironment returns Unit") {
+      val value = ZEnvironment.empty.get[Any]
+      assertTrue(value.isInstanceOf[Unit])
+    },
+    test("equality") {
+      val env1 = ZEnvironment("foo", 42)
+      val env2 = ZEnvironment("foo", 42)
+      assertTrue(env1 == env2)
+    },
+    test("equality takes into account order") {
+      val env1 = ZEnvironment("foo", 42)
+      val env2 = ZEnvironment(42, "foo")
+      assertTrue(env1 != env2)
+    },
+    test("hashCode") {
+      val env1 = ZEnvironment("foo", 42)
+      val env2 = ZEnvironment("foo", 42)
+      assertTrue(env1.hashCode == env2.hashCode)
+    },
+    test("hashCode takes into account order") {
+      val env1 = ZEnvironment("foo", 42)
+      val env2 = ZEnvironment(42, "foo")
+      assertTrue(env1.hashCode != env2.hashCode)
+    },
+    test("diff on two equal environments should return an empty patch") {
+      val env1  = ZEnvironment("foo", 42)
+      val env2  = ZEnvironment("foo", 42)
+      val patch = ZEnvironment.Patch.diff(env1, env2)
+      assertTrue(patch.isEmpty)
     }
   )
 }

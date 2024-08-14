@@ -46,7 +46,7 @@ private[zio] trait ClockPlatformSpecific {
 
 private object ClockPlatformSpecific {
   // Multi-threaded scheduler using ScheduledExecutorService
-  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(6)
+  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
   final class Timer private (private val scheduledFuture: java.util.concurrent.ScheduledFuture[_]) extends AnyVal {
     def clear(): Unit =
@@ -57,11 +57,11 @@ private object ClockPlatformSpecific {
     def delay(duration: FiniteDuration)(implicit trace: Trace): UIO[Unit] =
       for {
         promise <- Promise.make[Nothing, Unit]
-        _       <- ZIO.succeed(timeoutWithTrace(duration, () => promise.succeed(()).unit))
+        _       <- ZIO.succeed(timeout(duration, () => promise.succeed(()).unit))
         _       <- promise.await
       } yield ()
 
-    private def timeoutWithTrace(duration: FiniteDuration, callback: () => Unit)(implicit trace: Trace): Timer = {
+    private def timeout(duration: FiniteDuration, callback: () => Unit)(implicit trace: Trace): Timer = {
       val scheduledFuture = scheduler.schedule(
         new Runnable {
           override def run(): Unit = callback()
@@ -72,10 +72,10 @@ private object ClockPlatformSpecific {
       new Timer(scheduledFuture)
     }
 
-    // Legacy method without Trace to preserve binary compatibility
-    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit unsafe: Unsafe): Timer = {
-      timeoutWithTrace(duration, callback)(Trace.empty)
-    }
+    // // Legacy method without Trace to preserve binary compatibility
+    // def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit unsafe: Unsafe): Timer = {
+    //   timeoutWithTrace(duration, callback)(Trace.empty)
+    // }
 
     def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
       val scheduledFuture = scheduler.scheduleAtFixedRate(

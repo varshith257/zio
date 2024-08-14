@@ -57,7 +57,7 @@ private object ClockPlatformSpecific {
     def delay(duration: FiniteDuration)(implicit trace: Trace): UIO[Unit] =
       for {
         promise <- Promise.make[Nothing, Unit]
-        _       <- ZIO.succeed(timeout(duration)(() => promise.succeed(()).unit))
+        _       <- ZIO.succeed(timeoutWithTrace(duration, () => promise.succeed(()).unit))
         _       <- promise.await
       } yield ()
 

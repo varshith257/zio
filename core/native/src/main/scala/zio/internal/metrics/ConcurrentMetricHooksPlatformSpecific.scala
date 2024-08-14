@@ -24,7 +24,7 @@ private[zio] class ConcurrentMetricHooksPlatformSpecific extends ConcurrentMetri
   def counter(key: MetricKey.Counter): MetricHook.Counter = {
     val sum = new AtomicLong(0L)
 
-    MetricHook(v => sum += v, () => MetricState.Counter(sum), v => sum += v)
+    MetricHook(v => sum.addAndGet(v.toLong), () => MetricState.Counter(sum.get), v => sum.addAndGet(v.toLong))
   }
 
   def gauge(key: MetricKey.Gauge, startAt: Double): MetricHook.Gauge = {

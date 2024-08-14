@@ -153,7 +153,7 @@ object Clock extends ClockPlatformSpecific with Serializable {
           // No need to sleep, resume synchronously
           rightExitUnit
         } else {
-          val canceler = globalScheduler.schedule(() => cb(ZIO.unit), d)(Unsafe.unsafe)
+          val canceler = globalScheduler.schedule(() => cb(ZIO.unit), d)(Unsafe.unsafe, trace)
           Left(ZIO.succeed(canceler()))
         }
       }

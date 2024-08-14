@@ -47,7 +47,6 @@ private[zio] trait ClockPlatformSpecific {
 }
 
 private object ClockPlatformSpecific {
-
   // Multi-threaded scheduler using ScheduledExecutorService
   private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 

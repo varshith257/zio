@@ -18,10 +18,11 @@ package zio.internal.metrics
 
 import zio._
 import zio.metrics._
+import java.util.concurrent.atomic.AtomicLong
 
 private[zio] class ConcurrentMetricHooksPlatformSpecific extends ConcurrentMetricHooks {
   def counter(key: MetricKey.Counter): MetricHook.Counter = {
-    var sum = 0.0
+    val sum = new AtomicLong(0L)
 
     MetricHook(v => sum += v, () => MetricState.Counter(sum), v => sum += v)
   }
@@ -134,7 +135,7 @@ private[zio] class ConcurrentMetricHooksPlatformSpecific extends ConcurrentMetri
 
     // Assuming that the instant of observed values is continuously increasing
     // While Observing we cut off the first sample if we have already maxSize samples
-    def observe(value: Double, t: java.time.Instant): Unit = {
+    def observe(value: Double, t: java.time.Instant): Unit = synchronized {
       if (maxSize > 0) {
         head = head + 1 // TODO: Should `head` start at -1???
         val target = head % maxSize

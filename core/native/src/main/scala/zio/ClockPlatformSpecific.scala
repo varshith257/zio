@@ -72,17 +72,17 @@ private object ClockPlatformSpecific {
       new Timer(scheduledFuture)
     }
 
-    // def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
-    //   val scheduledFuture = scheduler.scheduleAtFixedRate(
-    //     new Runnable {
-    //       override def run(): Unit = callback()
-    //     },
-    //     duration.toMillis,
-    //     duration.toMillis,
-    //     TimeUnit.MILLISECONDS
-    //   )
-    //   new Timer(scheduledFuture)
-    // }
+    def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+      val scheduledFuture = scheduler.scheduleAtFixedRate(
+        new Runnable {
+          override def run(): Unit = callback()
+        },
+        duration.toMillis,
+        duration.toMillis,
+        TimeUnit.MILLISECONDS
+      )
+      new Timer(scheduledFuture)
+    }
   }
 }
 

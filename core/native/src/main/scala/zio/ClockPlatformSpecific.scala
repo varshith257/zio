@@ -31,7 +31,7 @@ private[zio] trait ClockPlatformSpecific {
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
 
-    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe): CancelToken =
+    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe, trace: Trace): CancelToken =
       (duration: @unchecked) match {
         case zio.Duration.Zero =>
           task.run()

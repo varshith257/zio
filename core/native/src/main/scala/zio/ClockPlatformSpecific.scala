@@ -54,14 +54,14 @@ private object ClockPlatformSpecific {
   }
 
   object Timer {
-    def delay(duration: FiniteDuration)(implicit trace: Trace): UIO[Unit] =
+    def delay(duration: FiniteDuration): UIO[Unit] =
       for {
         promise <- Promise.make[Nothing, Unit]
         _       <- ZIO.succeed(timeout(duration)(() => promise.succeed(()).unit))
         _       <- promise.await
       } yield ()
 
-    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+    def timeout(duration: FiniteDuration)(callback: () => Unit): Timer = {
       val scheduledFuture = scheduler.schedule(
         new Runnable {
           override def run(): Unit = callback()
@@ -72,7 +72,7 @@ private object ClockPlatformSpecific {
       new Timer(scheduledFuture)
     }
 
-    def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+    def repeat(duration: FiniteDuration)(callback: () => Unit): Timer = {
       val scheduledFuture = scheduler.scheduleAtFixedRate(
         new Runnable {
           override def run(): Unit = callback()

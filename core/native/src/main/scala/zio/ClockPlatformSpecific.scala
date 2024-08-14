@@ -31,7 +31,7 @@ private[zio] trait ClockPlatformSpecific {
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
 
-    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe, trace: Trace): CancelToken =
+    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe): CancelToken =
       (duration: @unchecked) match {
         case zio.Duration.Zero =>
           task.run()
@@ -61,7 +61,7 @@ private object ClockPlatformSpecific {
         _       <- promise.await
       } yield ()
 
-    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+    private def timeoutWithTrace(duration: FiniteDuration, callback: () => Unit)(implicit trace: Trace): Timer = {
       val scheduledFuture = scheduler.schedule(
         new Runnable {
           override def run(): Unit = callback()
@@ -70,6 +70,12 @@ private object ClockPlatformSpecific {
         TimeUnit.MILLISECONDS
       )
       new Timer(scheduledFuture)
+    }
+
+    // Legacy method without Trace to preserve binary compatibility
+    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit unsafe: Unsafe): Timer = {
+      val trace = Trace.newTrace
+      timeoutWithTrace(duration, callback)(trace)
     }
 
     def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {

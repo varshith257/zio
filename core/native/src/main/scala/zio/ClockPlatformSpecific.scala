@@ -14,7 +14,6 @@
  * limitations under the License.
  */
 
-
 package zio
 
 import java.util.concurrent.{ScheduledExecutorService, Executors, TimeUnit}
@@ -33,9 +32,6 @@ private[zio] trait ClockPlatformSpecific {
 
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
-
-    // Multi-threaded scheduler using ScheduledExecutorService
-    private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
     // Multi-threaded scheduler using ScheduledExecutorService
     private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)

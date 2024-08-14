@@ -74,8 +74,8 @@ private object ClockPlatformSpecific {
 
     // Legacy method without Trace to preserve binary compatibility
     def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit unsafe: Unsafe): Timer = {
-      val trace = Trace.newTrace
-      timeoutWithTrace(duration, callback)(trace)
+      val trace = Trace
+      timeoutWithTrace(duration, callback)(Trace.empty)
     }
 
     def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {

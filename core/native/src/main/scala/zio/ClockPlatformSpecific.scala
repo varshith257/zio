@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2017-2024 John A. De Goes and the ZIO Contributors
  *
@@ -14,17 +13,15 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package zio
-
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import zio.{DurationSyntax => _}
 
 import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.FiniteDuration
+import scala.scalanative.loop._
 
 private[zio] trait ClockPlatformSpecific {
-  import ClockPlatformSpecific.Timer
   private[zio] val globalScheduler = new Scheduler {
     import Scheduler.CancelToken
 
@@ -42,7 +39,6 @@ private[zio] trait ClockPlatformSpecific {
 
           val handle = Timer.timeout(FiniteDuration(nanos, TimeUnit.NANOSECONDS)) { () =>
             completed = true
-
             task.run()
           }
           () => {

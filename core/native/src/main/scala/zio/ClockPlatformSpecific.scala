@@ -22,6 +22,9 @@ import zio.{DurationSyntax => _}
 
 import scala.concurrent.duration.FiniteDuration
 
+  // Multi-threaded scheduler using ScheduledExecutorService
+  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
+
 private[zio] trait ClockPlatformSpecific {
   import ClockPlatformSpecific.Timer
   import ClockPlatformSpecific.Timer
@@ -31,8 +34,8 @@ private[zio] trait ClockPlatformSpecific {
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
 
-    // Multi-threaded scheduler using ScheduledExecutorService
-    private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
+    // // Multi-threaded scheduler using ScheduledExecutorService
+    // private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool()
 
     override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe): CancelToken =
       (duration: @unchecked) match {
@@ -48,8 +51,6 @@ private[zio] trait ClockPlatformSpecific {
 }
 
 private object ClockPlatformSpecific {
-  // Multi-threaded scheduler using ScheduledExecutorService
-  private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
   final class Timer private (private val scheduledFuture: java.util.concurrent.ScheduledFuture[_]) extends AnyVal {
     def clear(): Unit =

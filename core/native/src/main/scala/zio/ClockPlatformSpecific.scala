@@ -31,9 +31,6 @@ private[zio] trait ClockPlatformSpecific {
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
 
-    // Multi-threaded scheduler using ScheduledExecutorService
-    private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
-
     override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe): CancelToken =
       (duration: @unchecked) match {
         case zio.Duration.Zero =>
@@ -41,7 +38,7 @@ private[zio] trait ClockPlatformSpecific {
           ConstTrue
         case zio.Duration.Infinity => ConstFalse
         case zio.Duration.Finite(nanos) =>
-          val future = scheduler.schedule(task, nanos, TimeUnit.NANOSECONDS)
+          val future = ClockPlatformSpecific.scheduler.schedule(task, nanos, TimeUnit.NANOSECONDS)
           () => future.cancel(true)
       }
   }
@@ -49,7 +46,7 @@ private[zio] trait ClockPlatformSpecific {
 
 private object ClockPlatformSpecific {
   // Multi-threaded scheduler using ScheduledExecutorService
-  private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
+  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
   final class Timer private (private val scheduledFuture: java.util.concurrent.ScheduledFuture[_]) extends AnyVal {
     def clear(): Unit =
@@ -57,14 +54,14 @@ private object ClockPlatformSpecific {
   }
 
   object Timer {
-    def delay(duration: FiniteDuration)(implicit trace: Trace): UIO[Unit] =
+    def delay(duration: FiniteDuration): UIO[Unit] =
       for {
         promise <- Promise.make[Nothing, Unit]
         _       <- ZIO.succeed(timeout(duration)(() => promise.succeed(()).unit))
         _       <- promise.await
       } yield ()
 
-    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+    def timeout(duration: FiniteDuration)(callback: () => Unit): Timer = {
       val scheduledFuture = scheduler.schedule(
         new Runnable {
           override def run(): Unit = callback()
@@ -75,7 +72,7 @@ private object ClockPlatformSpecific {
       new Timer(scheduledFuture)
     }
 
-    def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
+    def repeat(duration: FiniteDuration)(callback: () => Unit): Timer = {
       val scheduledFuture = scheduler.scheduleAtFixedRate(
         new Runnable {
           override def run(): Unit = callback()

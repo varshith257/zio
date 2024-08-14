@@ -31,7 +31,7 @@ private[zio] trait ClockPlatformSpecific {
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
 
-    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe): CancelToken =
+    override def schedule(task: Runnable, duration: Duration)(implicit unsafe: Unsafe, trace: Trace): CancelToken =
       (duration: @unchecked) match {
         case zio.Duration.Zero =>
           task.run()
@@ -54,14 +54,14 @@ private object ClockPlatformSpecific {
   }
 
   object Timer {
-    def delay(duration: FiniteDuration): UIO[Unit] =
+    def delay(duration: FiniteDuration)(implicit trace: Trace): UIO[Unit] =
       for {
         promise <- Promise.make[Nothing, Unit]
         _       <- ZIO.succeed(timeout(duration)(() => promise.succeed(()).unit))
         _       <- promise.await
       } yield ()
 
-    def timeout(duration: FiniteDuration)(callback: () => Unit): Timer = {
+    def timeout(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
       val scheduledFuture = scheduler.schedule(
         new Runnable {
           override def run(): Unit = callback()
@@ -72,7 +72,7 @@ private object ClockPlatformSpecific {
       new Timer(scheduledFuture)
     }
 
-    def repeat(duration: FiniteDuration)(callback: () => Unit): Timer = {
+    def repeat(duration: FiniteDuration)(callback: () => Unit)(implicit trace: Trace): Timer = {
       val scheduledFuture = scheduler.scheduleAtFixedRate(
         new Runnable {
           override def run(): Unit = callback()

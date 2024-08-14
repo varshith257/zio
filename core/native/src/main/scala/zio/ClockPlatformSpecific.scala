@@ -14,7 +14,10 @@
  * limitations under the License.
  */
 
+
 package zio
+
+import java.util.concurrent.{ScheduledExecutorService, Executors, TimeUnit}
 
 import java.util.concurrent.{ScheduledExecutorService, Executors, TimeUnit}
 import zio.stacktracer.TracingImplicits.disableAutoTrace
@@ -24,11 +27,15 @@ import scala.concurrent.duration.FiniteDuration
 
 private[zio] trait ClockPlatformSpecific {
   import ClockPlatformSpecific.Timer
+  import ClockPlatformSpecific.Timer
   private[zio] val globalScheduler = new Scheduler {
     import Scheduler.CancelToken
 
     private[this] val ConstTrue  = () => false
     private[this] val ConstFalse = () => false
+
+    // Multi-threaded scheduler using ScheduledExecutorService
+    private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)
 
     // Multi-threaded scheduler using ScheduledExecutorService
     private val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(2)

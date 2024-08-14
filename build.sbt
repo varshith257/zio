@@ -234,6 +234,7 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .nativeSettings(
     nativeSettings,
+    nativeConfig := nativeConfig.value.withMultithreading(true),
     libraryDependencies ++= Seq(
       "com.github.lolgab" %%% "native-loop-core" % "0.3.0"
     )

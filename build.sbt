@@ -3,6 +3,7 @@ import Dependencies.*
 import MimaSettings.mimaSettings
 import explicitdeps.ExplicitDepsPlugin.autoImport.moduleFilterRemoveValue
 import sbt.Keys
+import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
 
 Global / onChangedBuildSource := ReloadOnSourceChanges
 
@@ -234,8 +235,8 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .nativeSettings(
     nativeSettings,
-    nativeConfig := nativeConfig.value.withMultithreading(true),
     libraryDependencies ++= Seq(
+      nativeConfig ~= { _.withMultithreading(true) },
       "com.github.lolgab" %%% "native-loop-core" % "0.3.0"
     )
   )

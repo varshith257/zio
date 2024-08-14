@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2017-2024 John A. De Goes and the ZIO Contributors
  *
@@ -254,7 +255,6 @@ sealed trait ZIO[-R, +E, +A]
 
       def get(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): ZIO[R, E, A] =
         ZIO.uninterruptibleMask { restore =>
-          ZIO.debug("Entering get method")
           Clock.nanoTime.flatMap { time =>
             cache.modifyZIO {
               case Some((end, p)) if end - time > 0 =>
@@ -269,12 +269,11 @@ sealed trait ZIO[-R, +E, +A]
         }
 
       def invalidate(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): UIO[Unit] =
-        ZIO.debug("Invalidating cache") *> cache.set(None)
+        cache.set(None)
 
       for {
         r     <- ZIO.environment[R]
         cache <- Ref.Synchronized.make[Option[(Long, Promise[E, A])]](None)
-        _     <- ZIO.debug("Created cache ref")
       } yield (get(cache).provideEnvironment(r), invalidate(cache))
     }
 
@@ -1176,7 +1175,7 @@ sealed trait ZIO[-R, +E, +A]
    * Unearth the unchecked failure of the effect. (opposite of `orDie`)
    * {{{
    *   val f0: Task[Unit] = ZIO.fail(new Exception("failing")).unit
-   *   val f1: UIO[Unit]  = f0.orDie
+   *   val f1: UIO[Unit]  = f0.orDie
    *   val f2: Task[Unit] = f1.resurrect
    * }}}
    */

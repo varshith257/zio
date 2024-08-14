@@ -1,3 +1,4 @@
+
 /*
  * Copyright 2017-2024 John A. De Goes and the ZIO Contributors
  *
@@ -252,39 +253,27 @@ sealed trait ZIO[-R, +E, +A]
     ZIO.suspendSucceed {
       val timeToLive = timeToLive0
 
-      def compute(start: Long): ZIO[R, Nothing, Option[(Long, Promise[E, A])]] =
-        for {
-          p <- Promise.make[E, A]
-          _ <- ZIO.debug("Created promise in compute")
-          _ <- self.intoPromise(p).onInterrupt {
-                 ZIO.debug("Promise interrupted") *> p.interrupt.ignore
-               }
-        } yield Some((start + timeToLive.toNanos, p))
-
       def get(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): ZIO[R, E, A] =
         ZIO.uninterruptibleMask { restore =>
-          ZIO.debug("Entering get method")
           Clock.nanoTime.flatMap { time =>
-            cache.updateSomeAndGetZIO {
-              case None                              => compute(time)
-              case Some((end, _)) if end - time <= 0 => compute(time)
-            }.flatMap {
-              case Some((_, promise)) =>
-                restore(promise.await).onInterrupt {
-                  ZIO.debug("Await interrupted") *> cache.set(None).ignore
+            cache.modifyZIO {
+              case Some((end, p)) if end - time > 0 =>
+                Exit.succeed(p.await -> Some((end, p)))
+              case _ =>
+                Promise.make[E, A].map { p =>
+                  val effect = self.onExit(p.done(_))
+                  effect -> Some((time + timeToLive.toNanos, p))
                 }
-              case None => ZIO.dieMessage("Unexpected cachedstate")
-            }
+            }.flatMap(restore(_))
           }
         }
 
       def invalidate(cache: Ref.Synchronized[Option[(Long, Promise[E, A])]]): UIO[Unit] =
-        ZIO.debug("Invalidating cache") *> cache.set(None)
+        cache.set(None)
 
       for {
         r     <- ZIO.environment[R]
         cache <- Ref.Synchronized.make[Option[(Long, Promise[E, A])]](None)
-        _     <- ZIO.debug("Created cache ref")
       } yield (get(cache).provideEnvironment(r), invalidate(cache))
     }
 
@@ -1186,7 +1175,7 @@ sealed trait ZIO[-R, +E, +A]
    * Unearth the unchecked failure of the effect. (opposite of `orDie`)
    * {{{
    *   val f0: Task[Unit] = ZIO.fail(new Exception("failing")).unit
-   *   val f1: UIO[Unit]  = f0.orDie
+   *   val f1: UIO[Unit]  = f0.orDie
    *   val f2: Task[Unit] = f1.resurrect
    * }}}
    */
@@ -1550,7 +1539,6 @@ sealed trait ZIO[-R, +E, +A]
    */
   final def repeatN(n: => Int)(implicit trace: Trace): ZIO[R, E, A] =
     ZIO.suspendSucceed {
-
       def loop(n: Int): ZIO[R, E, A] =
         self.flatMap(a => if (n <= 0) Exit.succeed(a) else ZIO.yieldNow *> loop(n - 1))
 
@@ -4914,7 +4902,7 @@ object ZIO extends ZIOCompanionPlatformSpecific with ZIOCompanionVersionSpecific
    * Prefix form of `ZIO#uninterruptible`.
    */
   def uninterruptible[R, E, A](zio: => ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    ZIO.suspendSucceed(zio.uninterruptible)
+    ZIO.suspendSucceed(zio).uninterruptible
 
   /**
    * Makes the effect uninterruptible, but passes it a restore function that can
@@ -4985,7 +4973,7 @@ object ZIO extends ZIOCompanionPlatformSpecific with ZIOCompanionVersionSpecific
    * higher-performance variant, see `ZIO#withRuntimeFlags`.
    */
   def updateRuntimeFlags(patch: RuntimeFlags.Patch)(implicit trace: Trace): ZIO[Any, Nothing, Unit] =
-    if (patch == RuntimeFlags.Patch.empty) ZIO.unit
+    if (patch == RuntimeFlags.Patch.empty) Exit.unit
     else ZIO.UpdateRuntimeFlags(trace, patch)
 
   /**
@@ -6663,15 +6651,49 @@ object Exit extends Serializable {
   def interrupt(id: FiberId): Exit[Nothing, Nothing] =
     failCause(Cause.interrupt(id))
 
+  /**
+   * Collects all Exits, and returns a List of the values if all Exits
+   * succeeded, or combines the causes sequentially in case of failures. Returns
+   * `None` in case the input iterable is empty
+   *
+   * @see
+   *   [[collectAllParDiscard]] For a more performant variant that discard the
+   *   successful values
+   */
   def collectAll[E, A](exits: Iterable[Exit[E, A]]): Option[Exit[E, List[A]]] =
     collectAllWith(exits)(_ ++ _)
 
+  /**
+   * Collects all Exits, and succeeds with Unit if all Exits succeeded, or
+   * combines the causes sequentially in case of failures.
+   */
+  def collectAllDiscard[E, A](exits: Iterable[Exit[E, A]]): Exit[E, Unit] =
+    collectAllDiscardWith(exits)(_ ++ _)
+
+  /**
+   * Collects all Exits, and returns a List of the values if all Exits
+   * succeeded, or combines the causes in parallel in case of failures. Returns
+   * `None` in case the input iterable is empty
+   *
+   * @see
+   *   [[collectAllParDiscard]] For a more performant variant that discard the
+   *   successful values
+   */
   def collectAllPar[E, A](exits: Iterable[Exit[E, A]]): Option[Exit[E, List[A]]] =
     collectAllWith(exits)(_ && _)
 
+  /**
+   * Collects all Exits, and succeeds with Unit if all Exits succeeded, or
+   * combines the causes in parallel in case of failures.
+   */
+  def collectAllParDiscard[E, A](exits: Iterable[Exit[E, A]]): Exit[E, Unit] =
+    collectAllDiscardWith(exits)(_ && _)
+
   private def collectAllWith[E, A](
     exits: Iterable[Exit[E, A]]
-  )(combineError: (Cause[E], Cause[E]) => Cause[E]): Option[Exit[E, List[A]]] =
+  )(
+    combineError: (Cause[E], Cause[E]) => Cause[E]
+  ): Option[Exit[E, List[A]]] =
     if (exits.isEmpty) None
     else {
       val builder = new ListBuffer[A]
@@ -6690,6 +6712,26 @@ object Exit extends Serializable {
       if (cause eq null) Some(Success(builder.result()))
       else Some(Failure(cause))
     }
+
+  private def collectAllDiscardWith[E, A](
+    exits: Iterable[Exit[E, A]]
+  )(
+    combineError: (Cause[E], Cause[E]) => Cause[E]
+  ): Exit[E, Unit] = {
+    var cause = null.asInstanceOf[Cause[E]]
+    val it    = exits.iterator
+    while (it.hasNext) {
+      val head = it.next()
+      head match {
+        case _: Success[?] => ()
+        case Failure(e) =>
+          if (cause eq null) cause = e
+          else cause = combineError(cause, e)
+      }
+    }
+    if (cause eq null) Exit.unit
+    else Failure(cause)
+  }
 
   def die(t: Throwable): Exit[Nothing, Nothing] =
     failCause(Cause.die(t))

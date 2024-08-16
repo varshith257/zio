@@ -38,7 +38,10 @@ private[zio] trait RuntimePlatformSpecific {
   final val defaultReportFatal: Throwable => Nothing =
     (t: Throwable) => {
       t.printStackTrace()
-      throw t
+      try {
+        java.lang.System.exit(-1)
+        throw t
+      } catch { case _: Throwable => throw t }
     }
 
   final val defaultSupervisor: Supervisor[Any] =

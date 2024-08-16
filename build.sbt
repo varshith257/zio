@@ -234,9 +234,6 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   )
   .nativeSettings(
     nativeSettings,
-    libraryDependencies ++= Seq(
-      "com.github.lolgab" %%% "native-loop-core" % "0.3.0"
-    )
   )
 
 lazy val coreTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)

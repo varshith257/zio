@@ -23,8 +23,11 @@ import scala.concurrent.ExecutionContext
 
 private[zio] trait RuntimePlatformSpecific {
 
+  private val customThreadPool       = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
+  private val customExecutionContext = ExecutionContext.fromExecutor(customThreadPool)
+
   final val defaultExecutor: Executor =
-    Executor.fromExecutionContext(ExecutionContext.global)
+    Executor.fromExecutionContext(customExecutionContext)
 
   final val defaultBlockingExecutor: Executor =
     defaultExecutor

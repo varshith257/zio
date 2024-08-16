@@ -55,9 +55,7 @@ private[zio] trait ClockPlatformSpecific {
 
 private object ClockPlatformSpecific {
   // Multi-threaded scheduler using ScheduledExecutorService
-  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(
-    Runtime.getRuntime().availableProcessors()
-  )
+  val scheduler: ScheduledExecutorService = Executors.newScheduledThreadPool(4)
 
   final class Timer private (private val scheduledFuture: java.util.concurrent.ScheduledFuture[_]) extends AnyVal {
     def clear(): Unit =

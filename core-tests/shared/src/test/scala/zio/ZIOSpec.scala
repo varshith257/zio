@@ -4,7 +4,7 @@ import zio.Cause._
 import zio.LatchOps._
 import zio.internal.Platform
 import zio.test.Assertion._
-import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, nonFlaky, scala2Only}
+import zio.test.TestAspect.{flaky, forked, jvm, native jvmOnly, nonFlaky, scala2Only}
 import zio.test._
 
 import scala.annotation.tailrec
@@ -1020,7 +1020,7 @@ object ZIOSpec extends ZIOBaseSpec {
         val seq = List.range(0, 100000)
         val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
         assertZIO(res)(equalTo(seq))
-      }@@ nonFlaky(20),
+      }@@ native(nonFlaky(20)),
         test ("runs effects in parallel") {
           val io = for {
             p <- Promise.make[Nothing, Unit]

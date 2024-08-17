@@ -9,28 +9,8 @@ import zio.test._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
-import java.lang.management.ManagementFactory
 
 object ZIOSpec extends ZIOBaseSpec {
-
-  def logThreadInfo(): Unit = {
-    val threadMXBean = ManagementFactory.getThreadMXBean()
-    val threadInfos  = threadMXBean.dumpAllThreads(true, true)
-    println(s"Active threads: ${threadInfos.length}")
-    threadInfos.foreach { threadInfo =>
-      println(s"Thread name: ${threadInfo.getThreadName}, State: ${threadInfo.getThreadState}")
-      threadInfo.getStackTrace.foreach { element =>
-        println(s"  at ${element.toString}")
-      }
-    }
-  }
-
-  def logMemoryUsage(): Unit = {
-    val runtime    = java.lang.Runtime.getRuntime()
-    val usedMemory = runtime.totalMemory() - runtime.freeMemory()
-    println(s"Used memory: $usedMemory bytes")
-  }
-
   import ZIOTag._
 
   def spec = suite("ZIOSpec")(

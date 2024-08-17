@@ -4,7 +4,7 @@ import zio.Cause._
 import zio.LatchOps._
 import zio.internal.Platform
 import zio.test.Assertion._
-import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, nonFlaky, native, scala2Only}
+import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, nonFlaky, scala2Only}
 import zio.test._
 
 import scala.annotation.tailrec

@@ -1034,31 +1034,18 @@ object ZIOSpec extends ZIOBaseSpec {
         val res  = ZIO.foreachPar(list)(x => ZIO.succeed(x.toString)).withParallelism(2)
         assertZIO(res)(equalTo(List("1", "2", "3")))
       },
-      // test("works on large lists with foreachParN") {
-      //   logThreadInfo()  // Before running the test
-      //   logMemoryUsage() // Before running the test
-
-      //   val n   = 10
-      //   val seq = List.range(0, 100000)
-      //   val res = ZIO.foreachParN(n)(seq)(ZIO.succeed(_))
-
-      //   assertZIO(res)(equalTo(seq))
-
-      //   logMemoryUsage() // After running the test
-      //   logThreadInfo()  // After running the test
-      // } @@ native(nonFlaky(20)),
-      test("works on large lists") {
-        logThreadInfo()  // Before running the test
-        logMemoryUsage() // Before running the test
-
+      test("works on large lists with foreachParN") {
         val n   = 10
         val seq = List.range(0, 100000)
-        val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
-        logMemoryUsage() // After running the test
-        logThreadInfo()  // After running the test
-
+        val res = ZIO.foreachParN(n)(seq)(ZIO.succeed(_))
         assertZIO(res)(equalTo(seq))
       } @@ native(nonFlaky(20)),
+      // test("works on large lists") {
+      //   val n   = 10
+      //   val seq = List.range(0, 100000)
+      //   val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
+      //   assertZIO(res)(equalTo(seq))
+      // } @@ native(nonFlaky(20)),
       test("runs effects in parallel") {
         val io = for {
           p <- Promise.make[Nothing, Unit]

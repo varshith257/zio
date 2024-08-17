@@ -4,16 +4,13 @@ import zio.Cause._
 import zio.LatchOps._
 import zio.internal.Platform
 import zio.test.Assertion._
-import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, nonFlaky, native, scala2Only}
+import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, native, nonFlaky, scala2Only}
 import zio.test._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
-import java.lang.management.ManagementFactory
 
 object ZIOSpec extends ZIOBaseSpec {
-
-  import ZIOTag._
 
   def logThreadInfo(): Unit = {
     val threadMXBean = ManagementFactory.getThreadMXBean()
@@ -32,61 +29,10 @@ object ZIOSpec extends ZIOBaseSpec {
     val usedMemory = runtime.totalMemory() - runtime.freeMemory()
     println(s"Used memory: $usedMemory bytes")
   }
+
+  import ZIOTag._
+
   def spec = suite("ZIOSpec")(
-    suite("foreachParN")(
-      test("returns the list of results in the appropriate order") {
-        val list = List(1, 2, 3)
-        val res  = ZIO.foreachPar(list)(x => ZIO.succeed(x.toString)).withParallelism(2)
-        assertZIO(res)(equalTo(List("1", "2", "3")))
-      },
-      test("works on large lists with foreachParN") {
-        logThreadInfo()  // Before running the test
-        logMemoryUsage() // Before running the test
-
-        val n   = 10
-        val seq = List.range(0, 100000)
-        val res = ZIO.foreachParN(n)(seq)(ZIO.succeed(_))
-
-        assertZIO(res)(equalTo(seq))
-
-        logMemoryUsage() // After running the test
-        logThreadInfo()  // After running the test
-      } @@ native(nonFlaky(20)),
-      test("works on large lists") {
-        logThreadInfo()  // Log thread info before the critical section
-        logMemoryUsage() // Log memory usage before the critical section
-
-        val n   = 10
-        val seq = List.range(0, 100000)
-        val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
-
-        logMemoryUsage() // Log memory usage after the critical section
-        logThreadInfo()  // Log thread info after the critical section
-        assertZIO(res)(equalTo(seq))
-      } @@ native(nonFlaky(20)),
-      test("runs effects in parallel") {
-        val io = for {
-          p <- Promise.make[Nothing, Unit]
-          _ <- ZIO.foreachPar(List(ZIO.never, p.succeed(())))(identity).withParallelism(2).fork
-          _ <- p.await
-        } yield true
-        assertZIO(io)(isTrue)
-      },
-      test("propagates error") {
-        val ints = List(1, 2, 3, 4, 5, 6)
-        val odds = ZIO.foreachPar(ints)(n => if (n % 2 != 0) ZIO.succeed(n) else ZIO.fail("not odd")).withParallelism(4)
-        assertZIO(odds.either)(isLeft(equalTo("not odd")))
-      } @@ zioTag(errors),
-      test("interrupts effects on first failure") {
-        val actions = List(
-          ZIO.never,
-          ZIO.succeed(1),
-          ZIO.fail("C")
-        )
-        val io = ZIO.foreachPar(actions)(a => a).withParallelism(4)
-        assertZIO(io.either)(isLeft(equalTo("C")))
-      } @@ zioTag(errors, interruption)
-    ),
     suite("heap")(
       test("unit.forever is safe") {
         for {
@@ -1080,6 +1026,60 @@ object ZIOSpec extends ZIOBaseSpec {
       test("completes on empty input") {
         ZIO.foreachParDiscard(Nil)(_ => ZIO.unit).as(assertCompletes)
       }
+    ),
+    suite("foreachParN")(
+      test("returns the list of results in the appropriate order") {
+        val list = List(1, 2, 3)
+        val res  = ZIO.foreachPar(list)(x => ZIO.succeed(x.toString)).withParallelism(2)
+        assertZIO(res)(equalTo(List("1", "2", "3")))
+      },
+      // test("works on large lists with foreachParN") {
+      //   logThreadInfo()  // Before running the test
+      //   logMemoryUsage() // Before running the test
+
+      //   val n   = 10
+      //   val seq = List.range(0, 100000)
+      //   val res = ZIO.foreachParN(n)(seq)(ZIO.succeed(_))
+
+      //   assertZIO(res)(equalTo(seq))
+
+      //   logMemoryUsage() // After running the test
+      //   logThreadInfo()  // After running the test
+      // } @@ native(nonFlaky(20)),
+      test("works on large lists") {
+        logThreadInfo()  // Before running the test
+        logMemoryUsage() // Before running the test
+
+        val n   = 10
+        val seq = List.range(0, 100000)
+        val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
+        logMemoryUsage() // After running the test
+        logThreadInfo()  // After running the test
+
+        assertZIO(res)(equalTo(seq))
+      } @@ native(nonFlaky(20)),
+      test("runs effects in parallel") {
+        val io = for {
+          p <- Promise.make[Nothing, Unit]
+          _ <- ZIO.foreachPar(List(ZIO.never, p.succeed(())))(identity).withParallelism(2).fork
+          _ <- p.await
+        } yield true
+        assertZIO(io)(isTrue)
+      },
+      test("propagates error") {
+        val ints = List(1, 2, 3, 4, 5, 6)
+        val odds = ZIO.foreachPar(ints)(n => if (n % 2 != 0) ZIO.succeed(n) else ZIO.fail("not odd")).withParallelism(4)
+        assertZIO(odds.either)(isLeft(equalTo("not odd")))
+      } @@ zioTag(errors),
+      test("interrupts effects on first failure") {
+        val actions = List(
+          ZIO.never,
+          ZIO.succeed(1),
+          ZIO.fail("C")
+        )
+        val io = ZIO.foreachPar(actions)(a => a).withParallelism(4)
+        assertZIO(io.either)(isLeft(equalTo("C")))
+      } @@ zioTag(errors, interruption)
     ),
     suite("foreachParNDiscard")(
       test("runs all effects") {

@@ -6,12 +6,10 @@ import zio.internal.Platform
 import zio.test.Assertion._
 import zio.test.TestAspect.{flaky, forked, jvm, jvmOnly, nonFlaky, native, scala2Only}
 import zio.test._
-import java.lang.management.ManagementFactory
-import java.lang.Thread.State
-import java.lang.Runtime
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
+import java.lang.management.ManagementFactory
 
 object ZIOSpec extends ZIOBaseSpec {
 
@@ -30,7 +28,7 @@ object ZIOSpec extends ZIOBaseSpec {
   }
 
   def logMemoryUsage(): Unit = {
-    val runtime    = Runtime.getRuntime()
+    val runtime    = java.lang.Runtime.getRuntime()
     val usedMemory = runtime.totalMemory() - runtime.freeMemory()
     println(s"Used memory: $usedMemory bytes")
   }
@@ -41,6 +39,19 @@ object ZIOSpec extends ZIOBaseSpec {
         val res  = ZIO.foreachPar(list)(x => ZIO.succeed(x.toString)).withParallelism(2)
         assertZIO(res)(equalTo(List("1", "2", "3")))
       },
+      test("works on large lists with foreachParN") {
+        logThreadInfo()  // Before running the test
+        logMemoryUsage() // Before running the test
+
+        val n   = 10
+        val seq = List.range(0, 100000)
+        val res = ZIO.foreachParN(n)(seq)(ZIO.succeed(_))
+
+        assertZIO(res)(equalTo(seq))
+
+        logMemoryUsage() // After running the test
+        logThreadInfo()  // After running the test
+      } @@ native(nonFlaky(20)),
       test("works on large lists") {
         logThreadInfo()  // Log thread info before the critical section
         logMemoryUsage() // Log memory usage before the critical section

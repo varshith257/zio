@@ -16,21 +16,19 @@
 
 package zio
 
-import zio.internal.IsFatal
+import zio.internal.{Blocking, IsFatal}
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 import scala.concurrent.ExecutionContext
+import java.lang.Runtime
 
 private[zio] trait RuntimePlatformSpecific {
 
-  private val customThreadPool       = Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors())
-  private val customExecutionContext = ExecutionContext.fromExecutor(customThreadPool)
-
   final val defaultExecutor: Executor =
-    Executor.fromExecutionContext(customExecutionContext)
+    Executor.fromExecutionContext(ExecutionContext.global)
 
   final val defaultBlockingExecutor: Executor =
-    defaultExecutor
+    Blocking.blockingExecutor
 
   final val defaultFatal: IsFatal =
     IsFatal.empty

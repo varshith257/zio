@@ -16,6 +16,12 @@
 
 package zio
 
+import zio.interop.javaz
 import zio.stacktracer.TracingImplicits.disableAutoTrace
+import java.nio.channels.CompletionHandler
+
 
 private[zio] trait TaskPlatformSpecific
+
+  def asyncWithCompletionHandler[T](op: CompletionHandler[T, Any] => Any)(implicit trace: Trace): Task[T] =
+    javaz.asyncWithCompletionHandler(op)

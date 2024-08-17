@@ -1016,7 +1016,7 @@ object ZIOSpec extends ZIOBaseSpec {
         assertZIO(res)(equalTo(List("1", "2", "3")))
       },
       test("works on large lists") {
-        val n   = 2
+        val n   = 10
         val seq = List.range(0, 10000)
         val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
         assertZIO(res)(equalTo(seq))

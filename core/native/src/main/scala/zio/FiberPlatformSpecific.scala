@@ -17,7 +17,6 @@
 package zio
 
 import _root_.java.util.concurrent.Future
-import zio.interop.javaz
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 private[zio] trait FiberPlatformSpecific {
@@ -29,7 +28,7 @@ private[zio] trait FiberPlatformSpecific {
       def await(implicit trace: Trace): UIO[Exit[Throwable, A]] =
         ZIO
           .attempt(ftr.get())
-          .foldCauseM(
+          .foldCauseZIO(
             cause => ZIO.succeed(Exit.failCause(cause)),
             value => ZIO.succeed(Exit.succeed(value))
           )

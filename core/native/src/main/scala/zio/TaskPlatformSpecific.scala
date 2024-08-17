@@ -16,13 +16,30 @@
 
 package zio
 
-import zio.interop.javaz
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import java.nio.channels.CompletionHandler
 
 private[zio] trait TaskPlatformSpecific {
 
+
   def asyncWithCompletionHandler[T](op: CompletionHandler[T, Any] => Any)(implicit trace: Trace): Task[T] =
-    javaz.asyncWithCompletionHandler(op)
+    ZIO.isFatalWith[Any, Throwable, T] { isFatal =>
+      ZIO.async { k =>
+        val handler = new CompletionHandler[T, Any] {
+          def completed(result: T, u: Any): Unit = k(ZIO.succeed(result))
+
+          def failed(t: Throwable, u: Any): Unit = t match {
+            case e if !isFatal(e) => k(ZIO.fail(e))
+            case _                => k(ZIO.die(t))
+          }
+        }
+
+        try {
+          op(handler)
+        } catch {
+          case e if !isFatal(e) => k(ZIO.fail(e))
+        }
+      }
+    }
 
 }

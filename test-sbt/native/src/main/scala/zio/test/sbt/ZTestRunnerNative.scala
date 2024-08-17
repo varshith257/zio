@@ -65,7 +65,7 @@ sealed abstract class ZTestRunnerNative(
     ZTestTask(deserializer(task), testClassLoader, runnerType, sendSummary, TestArgs.parse(args))
 }
 
-final class ZMasterTestRunnerNative(args: Array[String], remoteArgs: Array[String], testClassLoader: ClassLoader)
+final class ZMasterTestRunner(args: Array[String], remoteArgs: Array[String], testClassLoader: ClassLoader)
     extends ZTestRunnerNative(args, remoteArgs, testClassLoader, "master") {
 
   //This implementation seems to be used when there's only single spec to run
@@ -76,7 +76,7 @@ final class ZMasterTestRunnerNative(args: Array[String], remoteArgs: Array[Strin
 
 }
 
-final class ZSlaveTestRunnerNative(
+final class ZSlaveTestRunner(
   args: Array[String],
   remoteArgs: Array[String],
   testClassLoader: ClassLoader,

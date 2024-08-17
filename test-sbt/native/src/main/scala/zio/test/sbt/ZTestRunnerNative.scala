@@ -17,20 +17,17 @@
 package zio.test.sbt
 
 import sbt.testing._
-import zio.test.{FilteredSpec, Summary, TestArgs, ZIOSpecAbstract}
-import zio.{Exit, Runtime, Scope, Trace, Unsafe, ZIO, ZLayer}
+import zio.test.{FilteredSpec, Summary, TestArgs, TestEnvironment, TestLogger, ZIOSpecAbstract}
+import zio.{Exit, Layer, Runtime, Scope, Trace, Unsafe, ZEnvironment, ZIO, ZIOAppArgs, ZLayer}
 
 import scala.collection.mutable
 
 sealed abstract class ZTestRunnerNative(
   val args: Array[String],
-  remoteArgs0: Array[String],
+  val remoteArgs: Array[String],
   testClassLoader: ClassLoader,
   runnerType: String
 ) extends Runner {
-
-  def remoteArgs(): Array[String] = remoteArgs0
-
   def sendSummary: SendSummary
 
   val summaries: mutable.Buffer[Summary] = mutable.Buffer.empty
@@ -61,11 +58,14 @@ sealed abstract class ZTestRunnerNative(
   override def serializeTask(task: Task, serializer: TaskDef => String): String =
     serializer(task.taskDef())
 
+  // This is what prevents us from utilizing merged Specs.
+  // When we try to round trip, we only deserialize the first task, so all the others
+  // that were merged in are lost.
   override def deserializeTask(task: String, deserializer: String => TaskDef): Task =
     ZTestTask(deserializer(task), testClassLoader, runnerType, sendSummary, TestArgs.parse(args))
 }
 
-final class ZMasterTestRunner(args: Array[String], remoteArgs: Array[String], testClassLoader: ClassLoader)
+final class ZMasterTestRunnerNative(args: Array[String], remoteArgs: Array[String], testClassLoader: ClassLoader)
     extends ZTestRunnerNative(args, remoteArgs, testClassLoader, "master") {
 
   //This implementation seems to be used when there's only single spec to run
@@ -76,7 +76,7 @@ final class ZMasterTestRunner(args: Array[String], remoteArgs: Array[String], te
 
 }
 
-final class ZSlaveTestRunner(
+final class ZSlaveTestRunnerNative(
   args: Array[String],
   remoteArgs: Array[String],
   testClassLoader: ClassLoader,
@@ -96,11 +96,11 @@ sealed class ZTestTask(
       sendSummary,
       testArgs,
       spec,
-      zio.Runtime.default,
+      Runtime.default,
       zio.Console.ConsoleLive
     ) {
 
-  override def execute(eventHandler: EventHandler, loggers: Array[Logger]): Array[sbt.testing.Task] = {
+  def execute(eventHandler: EventHandler, loggers: Array[Logger], continuation: Array[Task] => Unit): Unit = {
     val fiber = Runtime.default.unsafe.fork {
       val logic =
         ZIO.consoleWith { console =>
@@ -137,11 +137,10 @@ sealed class ZTestTask(
         case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
         case _                   =>
       }
+      continuation(Array())
     }(Unsafe.unsafe)
-    Array()
   }
 }
-
 object ZTestTask {
   def apply(
     taskDef: TaskDef,
@@ -157,7 +156,6 @@ object ZTestTask {
   private def disectTask(taskDef: TaskDef, testClassLoader: ClassLoader): ZIOSpecAbstract = {
     import org.portablescala.reflect._
     val fqn = taskDef.fullyQualifiedName().stripSuffix("$") + "$"
-    // Creating the class from magic ether
     Reflect
       .lookupLoadableModuleClass(fqn, testClassLoader)
       .getOrElse(throw new ClassNotFoundException("failed to load object: " + fqn))

@@ -9,6 +9,7 @@ import zio.test._
 
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
+import java.lang.management.ManagementFactory
 
 object ZIOSpec extends ZIOBaseSpec {
 

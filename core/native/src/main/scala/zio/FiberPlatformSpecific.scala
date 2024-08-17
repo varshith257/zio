@@ -16,52 +16,23 @@
 
 package zio
 
-import _root_.java.util.concurrent.{Future}
+import _root_.java.util.concurrent.Future
 import zio.interop.javaz
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 private[zio] trait FiberPlatformSpecific {
 
-//   def fromCompletionStage[A](thunk: => CompletionStage[A]): Fiber[Throwable, A] = {
-//     lazy val cs: CompletionStage[A] = thunk
-
-//     new Fiber.Synthetic.Internal[Throwable, A] {
-//       override def await(implicit trace: Trace): UIO[Exit[Throwable, A]] = ZIO.fromCompletionStage(cs).exit
-
-//       def children(implicit trace: Trace): UIO[Chunk[Fiber.Runtime[_, _]]] = ZIO.succeed(Chunk.empty)
-
-//       override def poll(implicit trace: Trace): UIO[Option[Exit[Throwable, A]]] =
-//         ZIO.suspendSucceed {
-//           val cf = cs.toCompletableFuture
-//           if (cf.isDone) {
-//             ZIO
-//               .isFatalWith(isFatal => javaz.unwrapDone(isFatal)(cf))
-//               .fold(Exit.fail, Exit.succeed)
-//               .map(Some(_))
-//           } else {
-//             ZIO.succeed(None)
-//           }
-//         }
-
-//       def id: FiberId = FiberId.None
-
-//       final def interruptAsFork(id: FiberId)(implicit trace: Trace): UIO[Unit] =
-//         ZIO.succeed(cs.toCompletableFuture.cancel(false)).unit
-
-//       final def inheritAll(implicit trace: Trace): UIO[Unit] = ZIO.unit
-//     }
-//   }
-
-  /**
-   * WARNING: this uses the blocking Future#get, consider using
-   * `fromCompletionStage`
-   */
   def fromFutureJava[A](thunk: => Future[A]): Fiber[Throwable, A] = {
     lazy val ftr: Future[A] = thunk
 
     new Fiber.Synthetic.Internal[Throwable, A] {
       def await(implicit trace: Trace): UIO[Exit[Throwable, A]] =
-        ZIO.fromFutureJava(ftr).exit
+        ZIO
+          .attempt(ftr.get())
+          .foldCauseM(
+            cause => ZIO.succeed(Exit.failCause(cause)),
+            value => ZIO.succeed(Exit.succeed(value))
+          )
 
       def children(implicit trace: Trace): UIO[Chunk[Fiber.Runtime[_, _]]] =
         ZIO.succeed(Chunk.empty)
@@ -70,9 +41,11 @@ private[zio] trait FiberPlatformSpecific {
         ZIO.suspendSucceed {
           if (ftr.isDone) {
             ZIO
-              .isFatalWith(isFatal => javaz.unwrapDone(isFatal)(ftr))
-              .fold(Exit.fail, Exit.succeed)
-              .map(Some(_))
+              .attempt(ftr.get())
+              .fold(
+                throwable => Some(Exit.fail(throwable)),
+                value => Some(Exit.succeed(value))
+              )
           } else {
             ZIO.none
           }

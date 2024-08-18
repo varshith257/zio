@@ -111,7 +111,7 @@ sealed class ZTestTask(
           //    Check XML behavior
           _ <- ZIO.when(summary.status == Summary.Failure) {
                  ZIO.attempt {
-                   summary.failures.foreach { failure =>
+                   summary.failureDetails.foreach { failure =>
                      loggers.foreach { logger =>
                        logger.error(s"Test failed: ${failure.testCase}")
                        logger.trace(failure.cause.prettyPrint)
@@ -140,7 +140,7 @@ sealed class ZTestTask(
         loggers.foreach(_.error(s"$runnerType failed. Cause: ${cause.prettyPrint}"))
       case _ =>
     }
-    Array()
+    Array()summary
   }
 }
 

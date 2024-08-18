@@ -1,7 +1,7 @@
 package zio.stm
 
 import zio.test.Assertion._
-import zio.test.TestAspect.{jvm, nonFlaky}
+import zio.test.TestAspect.{jvm, nonFlaky, native}
 import zio.test._
 import zio.{Chunk, ZIO, ZIOBaseSpec}
 
@@ -756,7 +756,7 @@ object TArraySpec extends ZIOBaseSpec {
           res     <- arr.toList.commit
           expected = list.map(_ + 1)
         } yield assertTrue(res == expected && transactions.get() == n)
-      }
+      }@@ native(nonFlaky(100))
     ),
     suite("updateSTM")(
       test("happy-path") {

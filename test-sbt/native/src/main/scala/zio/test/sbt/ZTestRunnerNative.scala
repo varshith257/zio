@@ -17,19 +17,17 @@
 package zio.test.sbt
 
 import sbt.testing._
-import zio.test.{FilteredSpec, Summary, TestArgs, ZIOSpecAbstract}
-import zio.{Exit, Runtime, Scope, Trace, Unsafe, ZIO, ZLayer}
+import zio.test.{FilteredSpec, Summary, TestArgs, TestEnvironment, TestLogger, ZIOSpecAbstract}
+import zio.{Exit, Layer, Runtime, Scope, Trace, Unsafe, ZEnvironment, ZIO, ZIOAppArgs, ZLayer}
 
 import scala.collection.mutable
 
 sealed abstract class ZTestRunnerNative(
   val args: Array[String],
-  remoteArgs0: Array[String],
+  remoteArgs: Array[String],
   testClassLoader: ClassLoader,
   runnerType: String
 ) extends Runner {
-
-  def remoteArgs(): Array[String] = remoteArgs0
 
   def sendSummary: SendSummary
 
@@ -100,47 +98,45 @@ sealed class ZTestTask(
       zio.Console.ConsoleLive
     ) {
 
-  override def execute(eventHandler: EventHandler, loggers: Array[Logger]): Array[sbt.testing.Task] = {
-    val logic =
-      ZIO.consoleWith { console =>
-        for {
-          summary <- spec
-                       .runSpecAsApp(FilteredSpec(spec.spec, args), args, console)
-          _ <- sendSummary.provide(ZLayer.succeed(summary))
-          // TODO Confirm if/how these events needs to be handled in #6481
-          //    Check XML behavior
-          _ <- ZIO.when(summary.status == Summary.Failure) {
-                 ZIO.attempt {
-                   summary.failureDetails.foreach { failure =>
-                     loggers.foreach { logger =>
-                       logger.error(s"Test failed: ${failure.testCase}")
-                       logger.trace(failure.cause.prettyPrint)
-                     }
+  def execute(eventHandler: EventHandler, loggers: Array[Logger], continuation: Array[Task] => Unit): Unit = {
+    val fiber = Runtime.default.unsafe.fork {
+      val logic =
+        ZIO.consoleWith { console =>
+          (for {
+            summary <- spec
+                         .runSpecAsApp(FilteredSpec(spec.spec, args), args, console)
+            _ <- sendSummary.provide(ZLayer.succeed(summary))
+            // TODO Confirm if/how these events needs to be handled in #6481
+            //    Check XML behavior
+            _ <- ZIO.when(summary.status == Summary.Failure) {
+                   ZIO.attempt(
                      eventHandler.handle(
                        ZTestEvent(
                          taskDef.fullyQualifiedName(),
                          // taskDef.selectors() is "one to many" so we can expect nonEmpty here
                          taskDef.selectors().head,
                          Status.Failure,
-                         Some(new Throwable(failure.cause.prettyPrint)),
+                         None,
                          0L,
                          ZioSpecFingerprint
                        )
                      )
-                   }
+                   )
                  }
-               }
-        } yield ()
-      }.provideLayer(
-        sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
-      )
-    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe, Trace.empty)
-    result match {
-      case Exit.Failure(cause) =>
-        loggers.foreach(_.error(s"$runnerType failed. Cause: ${cause.prettyPrint}"))
-      case _ =>
-    }
-    Array()summary
+          } yield ())
+            .provideLayer(
+              sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
+            )
+        }
+      logic
+    }(Trace.empty, Unsafe.unsafe)
+    fiber.unsafe.addObserver { exit =>
+      exit match {
+        case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
+        case _                   =>
+      }
+      continuation(Array())
+    }(Unsafe.unsafe)
   }
 }
 

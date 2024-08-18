@@ -226,8 +226,7 @@ jobs:
           check-latest: true
       - name: Cache scala dependencies
         uses: coursier/cache-action@v6
-      - name: Install libuv (JS only)
-        if: ${{ matrix.platform == 'JS' }}
+      - name: Install libuv
         run: sudo apt-get update && sudo apt-get install -y libuv1-dev
       - name: Set Swap Space
         uses: pierotofy/set-swap-space@master

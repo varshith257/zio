@@ -170,7 +170,7 @@ sealed class ZTestTask(
       fiber.await.flatMap {
         case Exit.Failure(cause) => ZIO.attempt(Console.err.println(s"$runnerType failed. $cause"))
         case Exit.Success(_)     => ZIO.unit
-      }.unsafeRunSync()
+      }
     }(global)
 
     Array()

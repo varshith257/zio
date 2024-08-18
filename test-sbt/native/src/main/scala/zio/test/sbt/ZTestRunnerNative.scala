@@ -128,7 +128,7 @@ sealed class ZTestTask(
       }.provideLayer(
         sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
       )
-    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe, Trace.empty)
+    val result = Runtime.default.unsafe.run(logic)(Trace.empty, Unsafe.unsafe)
     result match {
       case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
       case _                   =>

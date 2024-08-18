@@ -132,7 +132,7 @@ sealed class ZTestTask(
     ) {
 
   override def execute(eventHandler: EventHandler, loggers: Array[Logger]): Array[sbt.testing.Task] = {
-    val fiber = LibuvThreadManager.submitTask {
+    val fiberFuture = LibuvThreadManager.submitTask {
       Runtime.default.unsafe.fork {
         val logic =
           ZIO.consoleWith { console =>

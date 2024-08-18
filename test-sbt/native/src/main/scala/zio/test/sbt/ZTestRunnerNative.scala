@@ -165,13 +165,12 @@ sealed class ZTestTask(
         logic
       }(Trace.empty, Unsafe.unsafe)
     }
-    fiber.foreach { exit =>
+    fiber.unsafe.addObserver { exit =>
       exit match {
         case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
-        case Exit.Success(_)     =>
         case _                   =>
       }
-    }(global)
+    }(Unsafe.unsafe)
     Array()
   }
 }

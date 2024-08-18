@@ -55,7 +55,7 @@ private[zio] abstract class RingBuffer[A](override final val capacity: Int) exte
 
   override final def dequeuedCount(): Long = head.get()
 
-  override final def offer(a: A): Boolean =
+  override final def offer(a: A): Boolean = {
     val curTail = tail.get()
     val curHead = head.get()
     if (curTail < curHead + capacity) {
@@ -66,8 +66,9 @@ private[zio] abstract class RingBuffer[A](override final val capacity: Int) exte
     } else {
       false
     }
+  }
 
-  override final def poll(default: A): A =
+  override final def poll(default: A): A = {
     val curHead = head.get()
     val curTail = tail.get()
     if (curHead < curTail) {
@@ -79,6 +80,7 @@ private[zio] abstract class RingBuffer[A](override final val capacity: Int) exte
     } else {
       default
     }
+  }
 
   override final def isEmpty(): Boolean = tail.get() == head.get()
 

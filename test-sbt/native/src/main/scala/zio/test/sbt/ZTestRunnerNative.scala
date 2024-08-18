@@ -134,7 +134,8 @@ sealed class ZTestTask(
         loggers.foreach { logger =>
           logger.error(s"$runnerType failed with cause: ${cause.prettyPrint}")
           logger.error(s"Stack trace: ${cause.prettyPrint}")
-        }Console.err.println(s"$runnerType failed. $cause")
+       };
+Console.err.println(s"$runnerType failed. $cause")
       case _                   =>
     }
     Array()

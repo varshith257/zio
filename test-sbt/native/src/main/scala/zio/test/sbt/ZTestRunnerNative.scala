@@ -110,29 +110,35 @@ sealed class ZTestTask(
           // TODO Confirm if/how these events needs to be handled in #6481
           //    Check XML behavior
           _ <- ZIO.when(summary.status == Summary.Failure) {
-                 ZIO.attempt(
-                   eventHandler.handle(
-                     ZTestEvent(
-                       taskDef.fullyQualifiedName(),
-                       // taskDef.selectors() is "one to many" so we can expect nonEmpty here
-                       taskDef.selectors().head,
-                       Status.Failure,
-                       Some(new Throwable(failure.cause.prettyPrint)),
-                       0L,
-                       ZioSpecFingerprint
+                 ZIO.attempt {
+                   summary.failures.foreach { failure =>
+                     loggers.foreach { logger =>
+                       logger.error(s"Test failed: ${failure.testCase}")
+                       logger.trace(failure.cause.prettyPrint)
+                     }
+                     eventHandler.handle(
+                       ZTestEvent(
+                         taskDef.fullyQualifiedName(),
+                         // taskDef.selectors() is "one to many" so we can expect nonEmpty here
+                         taskDef.selectors().head,
+                         Status.Failure,
+                         Some(new Throwable(failure.cause.prettyPrint)),
+                         0L,
+                         ZioSpecFingerprint
+                       )
                      )
-                   )
-                 )
+                   }
+                 }
                }
         } yield ()
       }.provideLayer(
         sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
       )
-    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe, Trace,empty)
+    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe, Trace, empty)
     result match {
-      case Exit.Failure(cause) =>        
-loggers.foreach(_.error(s"$runnerType failed. Cause: ${cause.prettyPrint}"))
-      case _                   =>
+      case Exit.Failure(cause) =>
+        loggers.foreach(_.error(s"$runnerType failed. Cause: ${cause.prettyPrint}"))
+      case _ =>
     }
     Array()
   }

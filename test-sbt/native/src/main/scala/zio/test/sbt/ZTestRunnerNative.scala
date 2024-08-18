@@ -168,6 +168,7 @@ sealed class ZTestTask(
     fiber.foreach { exit =>
       exit match {
         case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
+        case Exit.Success(_)     =>
         case _                   =>
       }
     }(global)

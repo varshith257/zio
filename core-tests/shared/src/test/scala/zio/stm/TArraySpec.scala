@@ -756,7 +756,7 @@ object TArraySpec extends ZIOBaseSpec {
           res     <- arr.toList.commit
           expected = list.map(_ + 1)
         } yield assertTrue(res == expected && transactions.get() == n)
-      }@@ native(nonFlaky(100))
+      }@@ native(nonFlaky(10000))
     ),
     suite("updateSTM")(
       test("happy-path") {

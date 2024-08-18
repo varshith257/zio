@@ -117,7 +117,7 @@ sealed class ZTestTask(
                        // taskDef.selectors() is "one to many" so we can expect nonEmpty here
                        taskDef.selectors().head,
                        Status.Failure,
-                       None,
+                       Some(new Throwable(failure.cause.prettyPrint)),
                        0L,
                        ZioSpecFingerprint
                      )
@@ -128,14 +128,10 @@ sealed class ZTestTask(
       }.provideLayer(
         sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
       )
-    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe)
+    val result = Runtime.default.unsafe.run(logic)(Unsafe.unsafe, Trace,empty)
     result match {
       case Exit.Failure(cause) =>        
-        loggers.foreach { logger =>
-          logger.error(s"$runnerType failed with cause: ${cause.prettyPrint}")
-          logger.error(s"Stack trace: ${cause.prettyPrint}")
-       };
-Console.err.println(s"$runnerType failed. $cause")
+loggers.foreach(_.error(s"$runnerType failed. Cause: ${cause.prettyPrint}"))
       case _                   =>
     }
     Array()

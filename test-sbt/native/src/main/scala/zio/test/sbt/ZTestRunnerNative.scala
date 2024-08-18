@@ -83,37 +83,6 @@ final class ZSlaveTestRunner(
   val sendSummary: SendSummary
 ) extends ZTestRunnerNative(args, remoteArgs, testClassLoader, "slave") {}
 
-import java.util.concurrent.{BlockingQueue, LinkedBlockingQueue}
-import scala.concurrent.{Future, Promise}
-import scala.concurrent.ExecutionContext.Implicits.global
-
-// Singleton object managing the dedicated libuv thread
-object LibuvThreadManager {
-  private val taskQueue: BlockingQueue[() => Unit] = new LinkedBlockingQueue[() => Unit]()
-
-  private val libuvThread = new Thread(() => {
-    while (true) {
-      val task = taskQueue.take()
-      logLibuvAccess("Executing task on libuv thread")
-      task()
-    }
-  })
-
-  libuvThread.start()
-
-  def submitTask[T](task: => T): Future[T] = {
-    val promise = Promise[T]()
-    taskQueue.put(() => promise.success(task))
-    promise.future
-  }
-
-  private def logLibuvAccess(message: String): Unit = {
-    val threadName = Thread.currentThread().getName
-    val stackTrace = Thread.currentThread().getStackTrace.drop(2).mkString("\n")
-    println(s"[$threadName] $message\n$stackTrace")
-  }
-}
-
 sealed class ZTestTask(
   taskDef: TaskDef,
   testClassLoader: ClassLoader,
@@ -132,47 +101,43 @@ sealed class ZTestTask(
     ) {
 
   override def execute(eventHandler: EventHandler, loggers: Array[Logger]): Array[sbt.testing.Task] = {
-    val fiberFuture = LibuvThreadManager.submitTask {
-      Runtime.default.unsafe.fork {
-        val logic =
-          ZIO.consoleWith { console =>
-            (for {
-              summary <- spec
-                           .runSpecAsApp(FilteredSpec(spec.spec, args), args, console)
-              _ <- sendSummary.provide(ZLayer.succeed(summary))
-              // TODO Confirm if/how these events needs to be handled in #6481
-              //    Check XML behavior
-              _ <- ZIO.when(summary.status == Summary.Failure) {
-                     ZIO.attempt(
-                       eventHandler.handle(
-                         ZTestEvent(
-                           taskDef.fullyQualifiedName(),
-                           // taskDef.selectors() is "one to many" so we can expect nonEmpty here
-                           taskDef.selectors().head,
-                           Status.Failure,
-                           None,
-                           0L,
-                           ZioSpecFingerprint
-                         )
+    val fiber = Runtime.default.unsafe.fork {
+      val logic =
+        ZIO.consoleWith { console =>
+          (for {
+            summary <- spec
+                         .runSpecAsApp(FilteredSpec(spec.spec, args), args, console)
+            _ <- sendSummary.provide(ZLayer.succeed(summary))
+            // TODO Confirm if/how these events needs to be handled in #6481
+            //    Check XML behavior
+            _ <- ZIO.when(summary.status == Summary.Failure) {
+                   ZIO.attempt(
+                     eventHandler.handle(
+                       ZTestEvent(
+                         taskDef.fullyQualifiedName(),
+                         // taskDef.selectors() is "one to many" so we can expect nonEmpty here
+                         taskDef.selectors().head,
+                         Status.Failure,
+                         None,
+                         0L,
+                         ZioSpecFingerprint
                        )
                      )
-                   }
-            } yield ())
-              .provideLayer(
-                sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
-              )
-          }
-        logic
-      }(Trace.empty, Unsafe.unsafe)
-    }
-
-    fiberFuture.foreach { fiber =>
-      fiber.await.flatMap {
-        case Exit.Failure(cause) => ZIO.attempt(Console.err.println(s"$runnerType failed. $cause"))
-        case Exit.Success(_)     => ZIO.unit
+                   )
+                 }
+          } yield ())
+            .provideLayer(
+              sharedFilledTestLayer +!+ (Scope.default >>> spec.bootstrap)
+            )
+        }
+      logic
+    }(Trace.empty, Unsafe.unsafe)
+    fiber.unsafe.addObserver { exit =>
+      exit match {
+        case Exit.Failure(cause) => Console.err.println(s"$runnerType failed. $cause")
+        case _                   =>
       }
-    }(global)
-
+    }(Unsafe.unsafe)
     Array()
   }
 }

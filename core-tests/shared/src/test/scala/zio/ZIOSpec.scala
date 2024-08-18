@@ -1021,7 +1021,7 @@ object ZIOSpec extends ZIOBaseSpec {
       //   assertZIO(res)(equalTo(seq))
       // } @@ native(nonFlaky(20)),
       test("works on large lists") {
-        val n   = 1
+        val n   = 2
         val seq = List.range(0, 100000)
         val res = ZIO.foreachPar(seq)(ZIO.succeed(_)).withParallelism(n)
         assertZIO(res)(equalTo(seq))

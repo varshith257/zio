@@ -243,6 +243,7 @@ object BuildHelper {
 
   def nativeSettings = Seq(
     Test / fork := crossProjectPlatform.value == JVMPlatform // set fork to `true` on JVM to improve log readability, JS and Native need `false`
+    nativeConfig ~= { _.withMultithreading(false) },
   )
 
   def jsSettings: List[Def.Setting[_]] = List(

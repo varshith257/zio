@@ -5403,15 +5403,18 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should interrupt InputStream reading") {
             for {
-              promise <- Promise.make[Nothing, Unit]
-              inputStream: InputStream = new InputStream {
-                                           override def read(): Int = {
-                                             zio.Unsafe.unsafe { implicit unsafe =>
-                                               zio.Runtime.default.unsafe.run(promise.await).getOrThrowFiberFailure()
-                                             }
-                                             -1
-                                           }
-                                         }
+              closedRef <- Ref.make(false) // Track whether InputStream is closed
+              // Simulate a blocking InputStream
+              inputStream = new InputStream {
+                              override def read(): Int = {
+                                // Simulate a long-running blocking operation (5 seconds sleep)
+                                Thread.sleep(5000)
+                                -1 // Simulate end of stream
+                              }
+
+                              override def close(): Unit =
+                                closedRef.set(true).unsafeRunSync() // Track when InputStream is closed
+                            }
 
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
@@ -5419,8 +5422,9 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fork
 
               // Interrupt the fiber after a short delay
-              _    <- TestClock.adjust(1.second) *> fiber.interrupt
-              exit <- fiber.await
+              _      <- TestClock.adjust(1.second) *> fiber.interrupt
+              exit   <- fiber.await
+              closed <- closedRef.get
             } yield assert(exit)(isInterrupted)
           }
 

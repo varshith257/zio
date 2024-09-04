@@ -5392,6 +5392,57 @@ object ZStreamSpec extends ZIOBaseSpec {
             }
           }
         ),
+        suite("fromInputStreamInterruptible")(
+          test("should read all data from InputStream correctly") {
+            val chunkSize = ZStream.DefaultChunkSize
+            val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
+            def is        = new ByteArrayInputStream(data)
+            ZStream.fromInputStreamInterruptible(is, chunkSize).runCollect.map { bytes =>
+              assert(bytes.toArray)(equalTo(data))
+            }
+          },
+          test("should interrupt InputStream reading") {
+            for {
+              promise <- Promise.make[Nothing, Unit]
+              inputStream = new InputStream {
+                              override def read(): Int = {
+                                Runtime.default.unsafeRun(
+                                  promise.await
+                                ) // Block indefinitely to simulate a long-running read
+                                -1
+                              }
+                            }
+              fiber <- ZStreamExtensions
+                         .fromInputStreamInterruptible(inputStream)
+                         .runCollect
+                         .fork
+
+              // Interrupt the fiber after a short delay
+              _      <- TestClock.adjust(1.second) *> fiber.interrupt
+              result <- fiber.join
+            } yield assert(result)(isInterrupted)
+          }
+          // test("should close InputStream when interrupted") {
+          //   for {
+          //     closedRef <- Ref.make(false)
+          //     inputStream = new InputStream {
+          //                     override def read(): Int = {
+          //                       Thread.sleep(5000) // Simulate a blocking read
+          //                       1
+          //                     }
+          //                     override def close(): Unit = unsafeRun(closedRef.set(true)) // Mark as closed on interrupt
+          //                   }
+
+          //     fiber <- ZStreamExtensions
+          //                .fromInputStreamInterruptible(inputStream)
+          //                .runCollect
+          //                .fork
+
+          //     _ <- TestClock.adjust(1.second) *> fiber.interrupt
+          //     closed <- closedRef.get
+          //   } yield assert(closed)(isTrue)
+          // }
+        ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
           def lazyL = l
           assertZIO(ZStream.fromIterable(lazyL).runCollect)(equalTo(l))

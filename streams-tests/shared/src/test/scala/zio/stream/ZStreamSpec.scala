@@ -5413,7 +5413,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _ <- ZIO.sleep(100.millis)
               result <- fiber.interrupt   // Interrupt the fiber
               _ = inputStream.interrupt() // Manually trigger interruption in the InputStream
-              result <- fiber.join        // Wait for the fiber to complete
+              result <- fiber.await       // Wait for the fiber to complete
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed

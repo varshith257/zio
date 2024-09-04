@@ -5403,18 +5403,17 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should interrupt InputStream reading") {
             for {
-              closedRef <- Ref.make(false) // Track whether InputStream is closed
-              // Simulate a blocking InputStream
-              inputStream = new InputStream {
-                              override def read(): Int = {
-                                // Simulate a long-running blocking operation (5 seconds sleep)
-                                Thread.sleep(5000)
-                                -1 // Simulate end of stream
-                              }
-
-                              override def close(): Unit =
-                                closedRef.set(true).unsafeRunSync() // Track when InputStream is closed
-                            }
+              closedRef <- Ref.make(false)
+              inputStream: InputStream = new InputStream {
+                                           override def read(): Int = {
+                                             // Simulate a long-running blocking operation (5 seconds sleep)
+                                             Thread.sleep(5000)
+                                             -1
+                                           }
+                                           override def close(): Unit = zio.Runtime.default.unsafe
+                                             .run(closedRef.set(true))
+                                             .getOrThrowFiberFailure()
+                                         }
 
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)

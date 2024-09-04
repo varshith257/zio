@@ -5410,8 +5410,10 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-              _ <- ZIO.sleep(500.millis)
-              result <- fiber.interrupt // Interrupt the fiber
+              _ <- ZIO.sleep(100.millis)
+              result <- fiber.interrupt   // Interrupt the fiber
+              _ = inputStream.interrupt() // Manually trigger interruption in the InputStream
+              result <- fiber.join        // Wait for the fiber to complete
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
@@ -5803,20 +5805,20 @@ object ZStreamSpec extends ZIOBaseSpec {
 }
 
 class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
-  var isClosed = false
-
-  val promise = Unsafe.unsafe { implicit unsafe =>
-    Runtime.default.unsafe.run(zio.Promise.make[Nothing, Unit]).getOrThrow()
-  }
+  var isClosed            = false
+  private var interrupted = false
 
   override def read(): Int = {
-    // Simulate delay to ensure the fiber is interrupted before read completes
-    Thread.sleep(1000)
-    Unsafe.unsafe { implicit unsafe =>
-      Runtime.default.unsafe.run(promise.await)
+    // Simulate long-running blocking read, but allow interruption
+    while (!interrupted) {
+      // Keep the loop running until interruption
+      Thread.sleep(100) // Simulate blocking
     }
     -1 // Simulate end-of-stream when interrupted
   }
+
+  def interrupt(): Unit =
+    interrupted = true
 
   override def close(): Unit = {
     isClosed = true

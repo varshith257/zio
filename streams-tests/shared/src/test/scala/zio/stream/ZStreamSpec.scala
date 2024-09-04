@@ -5406,7 +5406,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
-              inputStream = new ClosableByteArrayInputStream(data)
+              inputStream = new ClosableBlockingInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect

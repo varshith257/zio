@@ -5412,7 +5412,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                                 -1
                               }
                             }
-              fiber <- ZStreamExtensions
+              fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
@@ -5433,7 +5433,7 @@ object ZStreamSpec extends ZIOBaseSpec {
           //                     override def close(): Unit = unsafeRun(closedRef.set(true)) // Mark as closed on interrupt
           //                   }
 
-          //     fiber <- ZStreamExtensions
+          //     fiber <- ZStream
           //                .fromInputStreamInterruptible(inputStream)
           //                .runCollect
           //                .fork

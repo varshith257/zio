@@ -5403,29 +5403,34 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should interrupt InputStream reading") {
             for {
-              closedRef <- Ref.make(false)
+              closedRef <- Ref.make(false) // Track if InputStream is closed
+
+              // Simulate a blocking InputStream
               inputStream: InputStream = new InputStream {
                                            override def read(): Int = {
-                                             // Simulate a long-running blocking operation (5 seconds sleep)
-                                             Thread.sleep(5000)
-                                             -1
+                                             Thread.sleep(5000) // Simulate a blocking read operation
+                                             -1                 // End of stream
                                            }
-                                           override def close(): Unit = zio.Runtime.default.unsafe
-                                             .run(closedRef.set(true))
-                                             .getOrThrowFiberFailure()
+
+                                           override def close(): Unit =
+                                             zio.Runtime.default.unsafe
+                                               .runToFuture(closedRef.set(true)) // Mark InputStream as closed
                                          }
 
+              // Fork the stream into a fiber
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
 
-              // Interrupt the fiber after a short delay
-              _      <- TestClock.adjust(1.second) *> fiber.interrupt
-              exit   <- fiber.await
-              closed <- closedRef.get
-            } yield assert(exit)(isInterrupted)
-          }
+              // Simulate time passing and interrupt the fiber
+              _    <- TestClock.adjust(1.second) *> fiber.interrupt
+              exit <- fiber.await
+              closed <- closedRef.get // Check if InputStream was closed
+            } yield assert(exit)(isInterrupted) && assert(closed)(
+              isTrue
+            ) // Ensure fiber was interrupted and InputStream closed
+          } @@ TestAspect.timeout(5.seconds)
 
           // test("should close InputStream when interrupted") {
           //   for {

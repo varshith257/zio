@@ -5437,7 +5437,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _ <- ZStream
                      .fromInputStreamInterruptible(inputStream)
                      .runDrain
-              checkClosed <- ZIO.succeed(inputStream.closed) // Check if InputStream was closed
+              checkClosed <- ZIO.succeed(inputStream.isClosed) // Check if InputStream was closed
             } yield assert(checkClosed)(isTrue)
           }
         ),

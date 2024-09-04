@@ -9,7 +9,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, nonFlaky, scala2Only, withLiveClock}
 import zio.test._
 
-import java.io.{ByteArrayInputStream, IOException}
+import java.io.{ByteArrayInputStream, IOException, InputStream}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
@@ -5406,7 +5406,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               promise <- Promise.make[Nothing, Unit]
               inputStream = new InputStream {
                               override def read(): Int = {
-                                Runtime.default.unsafeRun(
+                                Runtime.default.unsafe.run(
                                   promise.await
                                 ) // Block indefinitely to simulate a long-running read
                                 -1
@@ -5441,7 +5441,7 @@ object ZStreamSpec extends ZIOBaseSpec {
           //     _ <- TestClock.adjust(1.second) *> fiber.interrupt
           //     closed <- closedRef.get
           //   } yield assert(closed)(isTrue)
-          // }
+          // },
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
           def lazyL = l

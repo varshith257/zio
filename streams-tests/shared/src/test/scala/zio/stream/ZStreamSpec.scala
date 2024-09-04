@@ -5401,48 +5401,44 @@ object ZStreamSpec extends ZIOBaseSpec {
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should interrupt InputStream reading") {
+          test("should read data from InputStream and close it on interruption") {
             for {
-
-              // Simulate a blocking InputStream
-              inputStream: InputStream = new InputStream {
-                              override def read(): Int = {
-                                // Simulate a long-running blocking operation
-                                Thread.sleep(5000) // Simulate a blocking read
-                                -1                 // End of stream
-                              }
-              // Fork the stream into a fiber
+              data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
+              // Override close() to track if InputStream is closed
+              inputStream: InputStream = new ByteArrayInputStream(data) {
+                                           var isClosed = false
+                                           override def close(): Unit = {
+                                             isClosed = true
+                                             super.close()
+                                           }
+                                         }
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-
-              // Simulate a delay and then interrupt the fiber
-              _    <- TestClock.adjust(1.second) *> fiber.interrupt
-              exit <- fiber.await
-            } yield assert(exit)(isInterrupted)
-          } @@ TestAspect.timeout(5.seconds)
-
-          // test("should close InputStream when interrupted") {
-          //   for {
-          //     closedRef <- Ref.make(false)
-          //     inputStream = new InputStream {
-          //                     override def read(): Int = {
-          //                       Thread.sleep(5000) // Simulate a blocking read
-          //                       1
-          //                     }
-          //                     override def close(): Unit = unsafeRun(closedRef.set(true)) // Mark as closed on interrupt
-          //                   }
-
-          //     fiber <- ZStream
-          //                .fromInputStreamInterruptible(inputStream)
-          //                .runCollect
-          //                .fork
-
-          //     _ <- TestClock.adjust(1.second) *> fiber.interrupt
-          //     closed <- closedRef.get
-          //   } yield assert(closed)(isTrue)
-          // },
+              _ <- TestClock.adjust(1.second) // Simulate some time passing
+              _ <- fiber.interrupt            // Interrupt the fiber
+              result <- fiber.join.exit       // Check the fiber's exit status
+            } yield assert(result)(fails(anything)) &&
+              assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
+          },
+          test("should properly close InputStream after stream is exhausted") {
+            for {
+              data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
+              // Override close() to track if InputStream is closed
+              inputStream: InputStream = new ByteArrayInputStream(data) {
+                                           var isClosed = false
+                                           override def close(): Unit = {
+                                             isClosed = true
+                                             super.close()
+                                           }
+                                         }
+              _ <- ZStream
+                     .fromInputStreamInterruptible(inputStream)
+                     .runDrain
+              checkClosed <- ZIO.succeed(inputStream.closed) // Check if InputStream was closed
+            } yield assert(checkClosed)(isTrue)
+          }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
           def lazyL = l

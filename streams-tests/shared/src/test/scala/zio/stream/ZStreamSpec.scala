@@ -5401,24 +5401,24 @@ object ZStreamSpec extends ZIOBaseSpec {
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should interrupt InputStream reading") { implicit unsafe: Unsafe =>
-            for {
-              promise <- Promise.make[Nothing, Unit]
-              inputStream: InputStream = new InputStream {
-                                           override def read(): Int = {
-                                             Runtime.default.unsafe.run(promise.await)
-                                             -1
+          test("should interrupt InputStream reading") {
+            Unsafe.unsafe { implicit unsafe =>
+              for {
+                promise <- Promise.make[Nothing, Unit]
+                inputStream: InputStream = new InputStream {
+                                             override def read(): Int =
+                                               Runtime.default.unsafe.run(promise.await)(unsafe)
                                            }
-                                         }
-              fiber <- ZStream
-                         .fromInputStreamInterruptible(inputStream)
-                         .runCollect
-                         .fork
+                fiber <- ZStream
+                           .fromInputStreamInterruptible(inputStream)
+                           .runCollect
+                           .fork
 
-              // Interrupt the fiber after a short delay
-              _    <- TestClock.adjust(1.second) *> fiber.interrupt
-              exit <- fiber.await
-            } yield assert(exit)(isInterrupted)
+                // Interrupt the fiber after a short delay
+                _    <- TestClock.adjust(1.second) *> fiber.interrupt
+                exit <- fiber.await
+              } yield assert(exit)(isInterrupted)
+            }
           }
           // test("should close InputStream when interrupted") {
           //   for {

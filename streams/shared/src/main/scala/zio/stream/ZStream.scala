@@ -4359,6 +4359,7 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
                            // Cancel action: close the InputStream to interrupt the read
                            ZIO.succeed(is.close()).ignore
                          )
+                         .refineToOrDie[IOException]
                          .asSomeError
           bytes <- if (bytesRead < 0)
                      ZIO.fail(None) // End of stream

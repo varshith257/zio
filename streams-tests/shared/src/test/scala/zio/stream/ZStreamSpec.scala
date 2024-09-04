@@ -9,10 +9,11 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, nonFlaky, scala2Only, withLiveClock}
 import zio.test._
 
-import java.io.{ByteArrayInputStream, IOException, InputStream}
+import java.io.{ByteArrayInputStream, IOException}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
+import scala.language.reflectiveCalls
 
 object ZStreamSpec extends ZIOBaseSpec {
   import ZIOTag._
@@ -5406,12 +5407,12 @@ object ZStreamSpec extends ZIOBaseSpec {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
               inputStream = new ByteArrayInputStream(data) {
-                                           var isClosed = false
-                                           override def close(): Unit = {
-                                             isClosed = true
-                                             super.close()
-                                           }
-                                         }
+                              var isClosed = false
+                              override def close(): Unit = {
+                                isClosed = true
+                                super.close()
+                              }
+                            }
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
@@ -5427,12 +5428,12 @@ object ZStreamSpec extends ZIOBaseSpec {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
               inputStream = new ByteArrayInputStream(data) {
-                                           var isClosed = false
-                                           override def close(): Unit = {
-                                             isClosed = true
-                                             super.close()
-                                           }
-                                         }
+                              var isClosed = false
+                              override def close(): Unit = {
+                                isClosed = true
+                                super.close()
+                              }
+                            }
               _ <- ZStream
                      .fromInputStreamInterruptible(inputStream)
                      .runDrain

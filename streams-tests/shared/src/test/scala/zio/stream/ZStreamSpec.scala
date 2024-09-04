@@ -5415,6 +5415,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                             }
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
+                            .take(1) 
                          .runCollect
                          .fork
               _ <- TestClock.adjust(1.second) // Simulate some time passing
@@ -5435,7 +5436,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                               }
                             }
               _ <- ZStream
-                     .fromInputStreamInterruptible(inputStream)
+                     .fromInputStreamInterruptibleScoped(inputStream)
                      .runDrain
               checkClosed <- ZIO.succeed(inputStream.isClosed) // Check if InputStream was closed
             } yield assert(checkClosed)(isTrue)

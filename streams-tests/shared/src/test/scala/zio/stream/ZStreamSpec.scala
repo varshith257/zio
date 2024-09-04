@@ -5406,13 +5406,8 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
-              inputStream = new ByteArrayInputStream(data) {
-                              var isClosed = false
-                              override def close(): Unit = {
-                                isClosed = true
-                                super.close()
-                              }
-                            }
+              inputStream = new ClosableByteArrayInputStream(data)
+
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .take(1)
@@ -5808,4 +5803,12 @@ object ZStreamSpec extends ZIOBaseSpec {
   val cat2: Cat   = Cat("cat2")
 
   case class Resource(idx: Int)
+}
+
+class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
+  var isClosed = false
+  override def close(): Unit = {
+    isClosed = true
+    super.close()
+  }
 }

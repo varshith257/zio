@@ -5806,10 +5806,14 @@ object ZStreamSpec extends ZIOBaseSpec {
 class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
   var isClosed = false
 
-  // Simulate blocking behavior
   override def read(): Int = {
-    Thread.sleep(5000) // Simulate a blocking read
-    super.read()
+    try {
+      // Block indefinitely, simulating a real blocking operation
+      Thread.sleep(Long.MaxValue)
+      super.read() // Read after the artificial delay (if ever reached)
+    } catch {
+      case _: InterruptedException => -1 // Return end-of-stream on interruption
+    }
   }
 
   override def close(): Unit = {

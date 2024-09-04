@@ -5407,10 +5407,8 @@ object ZStreamSpec extends ZIOBaseSpec {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
               inputStream = new ClosableByteArrayInputStream(data)
-
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
-                         .take(1)
                          .runCollect
                          .fork
               _ <- TestClock.adjust(1.second) // Simulate some time passing
@@ -5805,8 +5803,15 @@ object ZStreamSpec extends ZIOBaseSpec {
   case class Resource(idx: Int)
 }
 
-class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
+class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
   var isClosed = false
+
+  // Simulate blocking behavior
+  override def read(): Int = {
+    Thread.sleep(5000) // Simulate a blocking read
+    super.read()
+  }
+
   override def close(): Unit = {
     isClosed = true
     super.close()

@@ -5806,15 +5806,16 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   var isClosed = false
 
   override def read(): Int = {
-    // Simulate blocking read that will be interrupted
-    while (true) {
-      // The stream will be interrupted, so we stay in this loop until interrupted
+    // Simulate blocking by waiting indefinitely
+    // until the fiber is interrupted, which will close the stream
+    while (!isClosed) {
+      Thread.`yield`() // Yield execution, simulating a blocking read
     }
-    -1 // This line will never be reached unless interrupted
+    -1 // Simulate end of stream after the input stream is interrupted and closed
   }
 
   override def close(): Unit = {
-    isClosed = true
+    isClosed = true // Mark the stream as closed
     super.close()
   }
 }

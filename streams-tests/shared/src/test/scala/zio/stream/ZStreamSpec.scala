@@ -5414,7 +5414,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _ <- TestClock.adjust(1.second) // Simulate some time passing
               _ <- fiber.interrupt            // Interrupt the fiber
               result <- fiber.join.exit       // Check the fiber's exit status
-            } yield assert(result)(fails(anything)) &&
+            } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
           }
           // test("should properly close InputStream after stream is exhausted") {
@@ -5806,7 +5806,7 @@ object ZStreamSpec extends ZIOBaseSpec {
 class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
   var isClosed = false
 
-  override def read(): Int = {
+  override def read(): Int =
     try {
       // Block indefinitely, simulating a real blocking operation
       Thread.sleep(Long.MaxValue)
@@ -5814,7 +5814,6 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
     } catch {
       case _: InterruptedException => -1 // Return end-of-stream on interruption
     }
-  }
 
   override def close(): Unit = {
     isClosed = true

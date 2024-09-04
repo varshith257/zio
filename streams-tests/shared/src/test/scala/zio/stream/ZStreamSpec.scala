@@ -5406,12 +5406,12 @@ object ZStreamSpec extends ZIOBaseSpec {
               promise <- Promise.make[Nothing, Unit]
               inputStream: InputStream = new InputStream {
                                            override def read(): Int = {
-                                             Unsafe.unsafe { implicit unsafe =>
-                                               Runtime.default.unsafe.run(promise.await)
-                                             }
+                                             Runtime.default.unsafe.run(promise.await)
                                              -1
                                            }
+
                                          }
+
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect

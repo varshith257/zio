@@ -5405,11 +5405,11 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               promise <- Promise.make[Nothing, Unit]
               val inputStream: InputStream = new InputStream {
-                              override def read(): Int = {
-                                Runtime.default.unsafe.run(promise.await)
-                                -1
-                              }
-                            }
+                                               override def read(): Int = {
+                                                 Runtime.default.unsafe.run(promise.await)
+                                                 -1
+                                               }
+                                             }
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect

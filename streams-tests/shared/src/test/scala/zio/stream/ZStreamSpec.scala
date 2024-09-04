@@ -13,7 +13,7 @@ import java.io.{ByteArrayInputStream, IOException}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
-import scala.language.reflectiveCalls
+// import scala.language.reflectiveCalls
 
 object ZStreamSpec extends ZIOBaseSpec {
   import ZIOTag._

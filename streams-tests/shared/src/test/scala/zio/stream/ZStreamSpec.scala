@@ -5416,8 +5416,8 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fork
 
               // Interrupt the fiber after a short delay
-              _      <- TestClock.adjust(1.second) *> fiber.interrupt
-              result <- fiber.await
+              _    <- TestClock.adjust(1.second) *> fiber.interrupt
+              exit <- fiber.await
             } yield assert(exit)(isInterrupted)
           }
           // test("should close InputStream when interrupted") {

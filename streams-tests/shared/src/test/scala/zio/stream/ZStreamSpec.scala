@@ -5404,12 +5404,12 @@ object ZStreamSpec extends ZIOBaseSpec {
           test("should interrupt InputStream reading") { implicit unsafe: Unsafe =>
             for {
               promise <- Promise.make[Nothing, Unit]
-              val inputStream: InputStream = new InputStream {
-                                               override def read(): Int = {
-                                                 Runtime.default.unsafe.run(promise.await)
-                                                 -1
-                                               }
-                                             }
+              inputStream: InputStream = new InputStream {
+                                           override def read(): Int = {
+                                             Runtime.default.unsafe.run(promise.await)
+                                             -1
+                                           }
+                                         }
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
@@ -5417,8 +5417,8 @@ object ZStreamSpec extends ZIOBaseSpec {
 
               // Interrupt the fiber after a short delay
               _      <- TestClock.adjust(1.second) *> fiber.interrupt
-              result <- fiber.join
-            } yield assert(result)(isInterrupted)
+              result <- fiber.await
+            } yield assert(exit)(isInterrupted)
           }
           // test("should close InputStream when interrupted") {
           //   for {

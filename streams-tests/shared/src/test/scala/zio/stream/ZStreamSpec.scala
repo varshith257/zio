@@ -5405,7 +5405,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
-              inputStream: InputStream = new ByteArrayInputStream(data) {
+              inputStream = new ByteArrayInputStream(data) {
                                            var isClosed = false
                                            override def close(): Unit = {
                                              isClosed = true
@@ -5426,7 +5426,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               // Override close() to track if InputStream is closed
-              inputStream: InputStream = new ByteArrayInputStream(data) {
+              inputStream = new ByteArrayInputStream(data) {
                                            var isClosed = false
                                            override def close(): Unit = {
                                              isClosed = true

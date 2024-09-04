@@ -5401,14 +5401,12 @@ object ZStreamSpec extends ZIOBaseSpec {
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should interrupt InputStream reading") {
+          test("should interrupt InputStream reading") { implicit unsafe: Unsafe =>
             for {
               promise <- Promise.make[Nothing, Unit]
-              inputStream = new InputStream {
+              val inputStream: InputStream = new InputStream {
                               override def read(): Int = {
-                                Runtime.default.unsafe.run(
-                                  promise.await
-                                ) // Block indefinitely to simulate a long-running read
+                                Runtime.default.unsafe.run(promise.await)
                                 -1
                               }
                             }

@@ -5806,17 +5806,13 @@ object ZStreamSpec extends ZIOBaseSpec {
 
 class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
   var isClosed = false
+  val promise  = zio.Promise.make[Nothing, Unit].runNow()
 
-  override def read(): Int =
-    try {
-      // Simulate an infinite blocking read to allow interruption
-      while (true) {
-        Thread.sleep(1000) // Simulate a long-running blocking operation
-      }
-      super.read() // This will never be reached unless interrupted
-    } catch {
-      case _: InterruptedException => -1 // Simulate end-of-stream on interruption
-    }
+  override def read(): Int = {
+    // Block until the promise is completed (which will never happen)
+    zio.Runtime.default.unsafeRun(promise.await)
+    -1 // End of stream on interruption
+  }
 
   override def close(): Unit = {
     isClosed = true

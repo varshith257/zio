@@ -5808,7 +5808,7 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   override def read(): Int = {
     // Simulate blocking read that will be interrupted
     while (true) {
-      Thread.sleep(100) // Simulate long blocking
+      // The stream will be interrupted, so we stay in this loop until interrupted
     }
     -1 // This line will never be reached unless interrupted
   }

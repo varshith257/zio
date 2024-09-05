@@ -5394,7 +5394,7 @@ object ZStreamSpec extends ZIOBaseSpec {
         ),
         suite("fromInputStreamInterruptible")(
           test("should read all data from InputStream correctly") {
-            val chunkSize = ZStream.DefaultChunkSize
+            val chunkSize = 1024 // Reduced chunk size
             val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
             def is        = new ByteArrayInputStream(data)
             ZStream.fromInputStreamInterruptible(is, chunkSize).runCollect.map { bytes =>
@@ -5402,7 +5402,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             }
           },
           test("should read from input stream and allow interruption") {
-            val chunkSize   = ZStream.DefaultChunkSize
+            val chunkSize   = 1024 // Reduced chunk size
             val data        = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
             def inputStream = new ByteArrayInputStream(data)
 

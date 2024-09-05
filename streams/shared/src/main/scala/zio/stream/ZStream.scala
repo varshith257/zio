@@ -4354,22 +4354,23 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
       ZStream.logDebug(s"[ZStream] Creating stream from InputStream with chunk size: $chunkSize") *>
         ZStream.repeatZIOChunkOption {
           for {
+            // Log when buffer is being allocated
             bufArray <- ZIO.succeed {
                           ZIO.logDebug(s"[ZStream] Allocating buffer of size: $chunkSize")
                           Array.ofDim[Byte](chunkSize)
                         }
             // Log before attempting to read from InputStream
             bytesRead <- ZIO.attemptBlockingCancelable {
-                           ZIO.logDebug("[ZStream] Attempting to read from InputStream...").run
-                           is.read(bufArray)
+                           ZIO.logDebug("[ZStream] Attempting to read from InputStream...") *> // No need for .run
+                             is.read(bufArray)
                          } {
-                           ZIO
-                             .logDebug("[ZStream] Fiber interrupted, closing InputStream...")
-                             .run *> ZIO.succeed(is.close()).ignore
+                           ZIO.logDebug("[ZStream] Fiber interrupted, closing InputStream...") *> ZIO
+                             .succeed(is.close())
+                             .ignore
                          }
                            .refineToOrDie[IOException]
                            .asSomeError
-
+            // Log after reading bytes
             _ <- ZIO.logDebug(s"[ZStream] Bytes read: $bytesRead")
             bytes <- if (bytesRead < 0)
                        ZIO.fail(None) // End of stream

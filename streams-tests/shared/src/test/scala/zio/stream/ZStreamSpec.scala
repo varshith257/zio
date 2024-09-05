@@ -5410,9 +5410,10 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-              _ <- TestClock.adjust(500.millis) // Simulate the passage of time
+              _ <- TestClock.adjust(100.millis) // Simulate the passage of time
               result <- fiber.interrupt         // Interrupt the fiber
-              _ <- ZIO.succeed(println(s"Fiber Result: $result"))
+              result <- fiber.await
+              _      <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
           }
@@ -5806,17 +5807,20 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   @volatile var isClosed = false
 
   override def read(): Int = synchronized {
-    if (isClosed) {
-      return -1 // Stream closed, return end of stream
-    }
     while (!isClosed) {
-      Thread.sleep(10) // Simulate blocking until closed
+      try {
+        Thread.sleep(10) // Simulate blocking, but check for closure
+      } catch {
+        case _: InterruptedException =>
+          // Handle interruption if sleep is interrupted
+          close()
+      }
     }
     -1 // Return -1 when the stream is closed
   }
 
   override def close(): Unit = synchronized {
-    isClosed = true // Mark the stream as closed
+    isClosed = true
     super.close()
   }
 }

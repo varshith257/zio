@@ -5411,11 +5411,11 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .runCollect
                          .fork
               _ <- TestClock.adjust(100.millis) // Simulate the passage of time
-              _ = println("[Test] Interrupting the fiber...")
+              _ <- ZIO.logDebug("[Test] Interrupting the fiber...")
 
               result <- fiber.interrupt // Interrupt the fiber
-              _  = println(s"[Test] Fiber result after interruption: $result")
-              _  = println(s"[Test] InputStream closed: ${inputStream.isClosed}")
+              _ <- ZIO.logDebug("[Test] Interrupting the fiber...")
+              _ <- ZIO.logDebug(s"[Test] InputStream closed: ${inputStream.isClosed}")
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
@@ -5810,28 +5810,28 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   @volatile var isClosed = false
 
   override def read(): Int = synchronized {
-    println(s"[InputStream] Attempting to read from InputStream... Is closed: $isClosed")
+    ZIO.logDebug(s"[InputStream] Attempting to read from InputStream... Is closed: $isClosed")
     while (!isClosed) {
       try {
         Thread.sleep(10) // Simulate blocking
-        println(s"[InputStream] Blocking read operation... Is closed: $isClosed")
+        ZIO.logDebug(s"[InputStream] Blocking read operation... Is closed: $isClosed")
       } catch {
         case _: InterruptedException =>
           println(s"[InputStream] Interrupted during read, closing InputStream")
           close()
       }
     }
-    println("[InputStream] InputStream closed, returning -1")
+    ZIO.logDebug("[InputStream] InputStream closed, returning -1")
     -1 // Return -1 when the stream is closed
   }
 
   override def close(): Unit = synchronized {
     if (!isClosed) {
-      println("[InputStream] Closing InputStream...")
+      ZIO.logDebug("[InputStream] Closing InputStream...")
       isClosed = true
       super.close()
     } else {
-      println("[InputStream] InputStream is already closed")
+      ZIO.logDebug("[InputStream] InputStream is already closed")
     }
   }
 }

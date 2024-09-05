@@ -723,35 +723,55 @@ object GenSpec extends ZIOBaseSpec {
         )
       )
     },
-    test("unfoldGen") {
-      sealed trait Command
-      case object Pop                   extends Command
-      final case class Push(value: Int) extends Command
-
-      val genPop: Gen[Any, Command] = Gen.const(Pop)
-
-      def genPush: Gen[Any, Command] = Gen.int.map(value => Push(value))
-
-      val genCommands: Gen[Any, List[Command]] =
-        Gen.unfoldGen(0) { n =>
-          if (n <= 0)
-            genPush.map(command => (n + 1, command))
-          else
-            Gen.oneOf(
-              genPop.map(command => (n - 1, command)),
-              genPush.map(command => (n + 1, command))
-            )
-        }
-
-      check(genCommands) { commands =>
-        val stack = scala.collection.mutable.Stack.empty[Int]
-        commands.foreach {
-          case Pop         => stack.pop()
-          case Push(value) => stack.push(value)
-        }
-        assertCompletes
+    test("fromIterable before uuid") {
+      check(
+        for {
+          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+          id <- Gen.uuid
+        } yield id
+      ) { id =>
+        ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
       }
     },
+    test("uuid before fromIterable") {
+      check(
+        for {
+          id <- Gen.uuid
+          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+        } yield id
+      ) { id =>
+        ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+      }
+    }
+      test ("unfoldGen") {
+        sealed trait Command
+        case object Pop                   extends Command
+        final case class Push(value: Int) extends Command
+
+        val genPop: Gen[Any, Command] = Gen.const(Pop)
+
+        def genPush: Gen[Any, Command] = Gen.int.map(value => Push(value))
+
+        val genCommands: Gen[Any, List[Command]] =
+          Gen.unfoldGen(0) { n =>
+            if (n <= 0)
+              genPush.map(command => (n + 1, command))
+            else
+              Gen.oneOf(
+                genPop.map(command => (n - 1, command)),
+                genPush.map(command => (n + 1, command))
+              )
+          }
+
+        check(genCommands) { commands =>
+          val stack = scala.collection.mutable.Stack.empty[Int]
+          commands.foreach {
+            case Pop         => stack.pop()
+            case Push(value) => stack.push(value)
+          }
+          assertCompletes
+        }
+      },
     test("resize") {
       for {
         size <- Gen.size.resize(42).runHead.some

@@ -5413,7 +5413,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _ <- TestClock.adjust(100.millis) // Simulate the passage of time
               _ = println("[Test] Interrupting the fiber...")
 
-              _ <- fiber.interrupt // Interrupt the fiber
+              result <- fiber.interrupt // Interrupt the fiber
               _  = println(s"[Test] Fiber result after interruption: $result")
               _  = println(s"[Test] InputStream closed: ${inputStream.isClosed}")
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))

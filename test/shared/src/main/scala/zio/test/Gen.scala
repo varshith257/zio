@@ -861,7 +861,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromEffect(ZIO.randomWith(_.nextUUID))
+    Gen.fromZIO(ZIO.randomWith(_.nextUUID))
 
   /**
    * A sized generator of vectors.

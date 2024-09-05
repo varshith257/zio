@@ -4350,7 +4350,7 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
   def fromInputStreamInterruptible(
     is: => InputStream,
     chunkSize: Int = ZStream.DefaultChunkSize
-  )(implicit trace: Trace): ZStream[Blocking, IOException, Byte] =
+  )(implicit trace: Trace): ZStream[Any, IOException, Byte] =
     ZStream.repeatZIOChunkOption {
       ZIO.blocking {
         ZIO.attemptBlockingCancelable {

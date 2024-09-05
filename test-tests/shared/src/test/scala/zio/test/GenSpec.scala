@@ -726,7 +726,7 @@ object GenSpec extends ZIOBaseSpec {
     test("fromIterable before uuid") {
       check(
         for {
-          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+          _  <- Gen.fromIterable(List(1, 2, 3, 4))
           id <- Gen.uuid
         } yield id
       ) { id =>
@@ -737,7 +737,7 @@ object GenSpec extends ZIOBaseSpec {
       check(
         for {
           id <- Gen.uuid
-          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+          _  <- Gen.fromIterable(List(1, 2, 3, 4))
         } yield id
       ) { id =>
         ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes

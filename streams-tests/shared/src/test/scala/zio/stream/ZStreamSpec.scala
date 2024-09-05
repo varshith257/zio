@@ -5404,9 +5404,7 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should read data from InputStream and close it on interruption") {
             for {
-              data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
-              -    <- ZIO.logDebug(s"[InputStream] Attempting to read from InputStream... Is closed: $isClosed")
-
+              data       <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
               inputStream = new ClosableBlockingInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)

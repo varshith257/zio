@@ -5404,7 +5404,9 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should read data from InputStream and close it on interruption") {
             for {
-              data       <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
+              data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
+              -    <- ZIO.logDebug(s"[InputStream] Attempting to read from InputStream... Is closed: $isClosed")
+
               inputStream = new ClosableBlockingInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
@@ -5810,28 +5812,23 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   @volatile var isClosed = false
 
   override def read(): Int = synchronized {
-    ZIO.logDebug(s"[InputStream] Attempting to read from InputStream... Is closed: $isClosed")
     while (!isClosed) {
       try {
         Thread.sleep(10) // Simulate blocking
-        ZIO.logDebug(s"[InputStream] Blocking read operation... Is closed: $isClosed")
       } catch {
         case _: InterruptedException =>
-          println(s"[InputStream] Interrupted during read, closing InputStream")
           close()
       }
     }
-    ZIO.logDebug("[InputStream] InputStream closed, returning -1")
     -1 // Return -1 when the stream is closed
   }
 
   override def close(): Unit = synchronized {
     if (!isClosed) {
-      ZIO.logDebug("[InputStream] Closing InputStream...")
       isClosed = true
       super.close()
     } else {
-      ZIO.logDebug("[InputStream] InputStream is already closed")
+      println("[InputStream] InputStream is already closed")
     }
   }
 }

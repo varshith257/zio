@@ -5402,9 +5402,9 @@ object ZStreamSpec extends ZIOBaseSpec {
             }
           },
           test("should read from input stream and allow interruption") {
+            val chunkSize = ZStream.DefaultChunkSize
+            val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
             for {
-              val chunkSize = ZStream.DefaultChunkSize
-              val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte) 
               inputStream <- ZIO.succeed(new InterruptibleInputStream(data))
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)

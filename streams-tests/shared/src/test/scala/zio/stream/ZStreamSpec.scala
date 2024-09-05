@@ -5401,25 +5401,17 @@ object ZStreamSpec extends ZIOBaseSpec {
             ZStream.fromInputStreamInterruptible(is, chunkSize).runCollect.map { bytes =>
               assert(bytes.toArray)(equalTo(data))
             }
+          },
+          test("should read from input stream and allow interruption") {
+            for {
+              data        <- ZIO.succeed("zio-stream".getBytes)
+              inputStream <- ZIO.succeed(new ByteArrayInputStream(data))
+              fiber       <- ZStreamExtensions.fromInputStreamInterruptible(inputStream).runCollect.fork
+              _ <- TestClock.adjust(5.seconds) // Simulate time passing for testing
+              _      <- fiber.interrupt
+              result <- fiber.join.either
+            } yield assert(result)(isLeft)
           }
-
-          // test("should properly close InputStream after stream is exhausted") {
-          //   for {
-          //     data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
-          //     // Override close() to track if InputStream is closed
-          //     inputStream = new ByteArrayInputStream(data) {
-          //                     var isClosed = false
-          //                     override def close(): Unit = {
-          //                       isClosed = true
-          //                       super.close()
-          //                     }
-          //                   }
-          //     _ <- ZStream
-          //            .fromInputStreamInterruptibleScoped(inputStream)
-          //            .runDrain
-          //     checkClosed <- ZIO.succeed(inputStream.isClosed) // Check if InputStream was closed
-          //   } yield assert(checkClosed)(isTrue)
-          // }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
           def lazyL = l

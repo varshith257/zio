@@ -4356,9 +4356,10 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
           bufArray <- ZIO.succeed(Array.ofDim[Byte](chunkSize))
           bytesRead <- ZIO
                          .attemptBlockingCancelable(is.read(bufArray))(
-                           ZIO.succeed(is.close()).ignore // Cancel action: Close the InputStream
+                           ZIO.succeed(is.close()).ignore
                          )
-                         .asSomeError
+                         .refineOrDie { case e: IOException => e }
+                         .asSomeError // Convert the IOException to Option
           bytes <- if (bytesRead < 0)
                      ZIO.fail(None)
                    else if (bytesRead == 0)

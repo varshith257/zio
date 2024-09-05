@@ -4350,36 +4350,38 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
     is: => InputStream,
     chunkSize: => Int = ZStream.DefaultChunkSize
   )(implicit trace: Trace): ZStream[Any, IOException, Byte] =
-    println(s"[ZStream] Creating stream from InputStream with chunk size: $chunkSize")
-  ZStream.succeed((is, chunkSize)).flatMap { case (is, chunkSize) =>
-    ZStream.repeatZIOChunkOption {
-      for {
-        bufArray <- ZIO.succeed {
-                      println(s"[ZStream] Allocating buffer of size: $chunkSize")
-                      Array.ofDim[Byte](chunkSize)
-                    }
-        bytesRead <- ZIO
-                       .attemptBlockingCancelable(is.read(bufArray))(
-                         // Cancel action: close the InputStream to interrupt the read
-                         ZIO.succeed {
-                           println("[ZStream] Fiber interrupted, closing InputStream...")
-                           is.close()
-                         }.ignore
-                       )
-                       .refineToOrDie[IOException]
-                       .asSomeError
-        _ = println(s"[ZStream] Bytes read: $bytesRead")
-        bytes <- if (bytesRead < 0)
-                   ZIO.fail(None) // End of stream
-                 else if (bytesRead == 0)
-                   ZIO.succeed(Chunk.empty)
-                 else if (bytesRead < chunkSize)
-                   ZIO.succeed(Chunk.fromArray(bufArray).take(bytesRead))
-                 else
-                   ZIO.succeed(Chunk.fromArray(bufArray))
-      } yield bytes
+    ZStream.succeed((is, chunkSize)).flatMap { case (is, chunkSize) =>
+      ZStream.succeed(println(s"[ZStream] Creating stream from InputStream with chunk size: $chunkSize")) *>
+        ZStream.repeatZIOChunkOption {
+          for {
+            bufArray <- ZIO.succeed {
+                          println(s"[ZStream] Allocating buffer of size: $chunkSize")
+                          Array.ofDim[Byte](chunkSize)
+                        }
+            // Log before attempting to read from InputStream
+            bytesRead <- ZIO.attemptBlockingCancelable {
+                           println("[ZStream] Attempting to read from InputStream...")
+                           is.read(bufArray)
+                         } {
+                           ZIO.succeed {
+                             println("[ZStream] Fiber interrupted, closing InputStream...")
+                             is.close()
+                           }.ignore
+                         }
+                           .refineToOrDie[IOException]
+                           .asSomeError
+            _ = println(s"[ZStream] Bytes read: $bytesRead")
+            bytes <- if (bytesRead < 0)
+                       ZIO.fail(None) // End of stream
+                     else if (bytesRead == 0)
+                       ZIO.succeed(Chunk.empty)
+                     else if (bytesRead < chunkSize)
+                       ZIO.succeed(Chunk.fromArray(bufArray).take(bytesRead))
+                     else
+                       ZIO.succeed(Chunk.fromArray(bufArray))
+          } yield bytes
+        }
     }
-  }
 
   /**
    * Creates an interruptible stream from a `ZIO` effect producing an

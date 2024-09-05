@@ -5406,7 +5406,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               data        <- ZIO.succeed("zio-stream".getBytes)
               inputStream <- ZIO.succeed(new ByteArrayInputStream(data))
-              fiber       <- ZStreamExtensions.fromInputStreamInterruptible(inputStream).runCollect.fork
+              fiber       <- ZStream.fromInputStreamInterruptible(inputStream).runCollect.fork
               _ <- TestClock.adjust(5.seconds) // Simulate time passing for testing
               _      <- fiber.interrupt
               result <- fiber.join.either

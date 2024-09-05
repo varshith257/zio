@@ -9,7 +9,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, nonFlaky, scala2Only, withLiveClock}
 import zio.test._
 
-import java.io.{ByteArrayInputStream, IOException, InputStream}
+import java.io.{ByteArrayInputStream, IOException}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
@@ -5401,17 +5401,37 @@ object ZStreamSpec extends ZIOBaseSpec {
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should simulate a slow stream and allow interruption") {
+          test("should read from input stream and allow interruption") {
             val chunkSize = ZStream.DefaultChunkSize
-            val data      = Chunk.fromArray(Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)) // Test data
-
-            // Simulate a "slow" stream where each chunk takes 500ms to produce
-            val slowStream = ZStream.fromChunk(data).schedule(Schedule.spaced(500.millis))
+            val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte) // Create test data
 
             for {
-              fiber <- slowStream.runCollect.fork
-              _ <- ZIO.sleep(1.second) *> fiber.interrupt // Interrupt after 1 second
-              result <- fiber.join.either
+              // Simulate a blocking InputStream that yields control back to the scheduler
+              inputStream <- ZIO.succeed(new InputStream {
+                               private var index = 0
+
+                               override def read(): Int =
+                                 if (index >= data.length) -1
+                                 else {
+                                   // Simulate a small delay on each read
+                                   Thread.sleep(500) // Simulate blocking read
+                                   val byte = data(index)
+                                   index += 1
+                                   byte & 0xff
+                                 }
+                             })
+
+              // Start the fiber and attempt to read the data
+              fiber <- ZStream
+                         .fromInputStreamInterruptible(inputStream)
+                         .runCollect
+                         .fork
+
+              // Wait for a second and then interrupt the fiber
+              _ <- TestClock.adjust(5.seconds) // Simulate time passing for testing
+              _ <- fiber.interrupt
+              result <- fiber.join // Collect the result
+
             } yield assert(result)(isLeft) // Expect the fiber to be interrupted
           }
         ),

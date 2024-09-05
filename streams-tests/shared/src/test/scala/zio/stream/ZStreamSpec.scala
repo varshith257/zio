@@ -5410,8 +5410,8 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-              _ <- ZIO.sleep(100.millis)
-              result <- fiber.interrupt // Interrupt the fiber
+              _ <- TestClock.adjust(100.millis) // Simulate the passage of time
+              result <- fiber.interrupt         // Interrupt the fiber
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
@@ -5809,7 +5809,7 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
     // Simulate blocking by waiting indefinitely
     // until the fiber is interrupted, which will close the stream
     while (!isClosed) {
-      Thread.`yield`() // Yield execution, simulating a blocking read
+      Thread.sleep(10)
     }
     -1 // Simulate end of stream after the input stream is interrupted and closed
   }

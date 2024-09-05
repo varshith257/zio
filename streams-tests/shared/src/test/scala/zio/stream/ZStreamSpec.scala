@@ -5410,7 +5410,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-              _ <- TestClock.adjust(100.millis) // Simulate the passage of time
+              _ <- TestClock.adjust(500.millis) // Simulate the passage of time
               _ <- ZIO.log("[Test] Interrupting the fiber...")
 
               result <- fiber.interrupt // Interrupt the fiber

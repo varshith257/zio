@@ -5812,7 +5812,7 @@ class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStrea
   override def read(): Int = synchronized {
     while (!isClosed) {
       try {
-        Thread.sleep(5) // Simulate blocking
+        Thread.sleep(10) // Simulate blocking
       } catch {
         case _: InterruptedException =>
           close()

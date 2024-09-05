@@ -5401,19 +5401,16 @@ object ZStreamSpec extends ZIOBaseSpec {
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should simulate a slow stream and allow interruption") {
-            val chunkSize = ZStream.DefaultChunkSize
-            val data      = Chunk.fromArray(Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)) // Test data
-
-            // Simulate a "slow" stream where each chunk takes 500ms to produce
-            val slowStream = ZStream.fromChunk(data).schedule(Schedule.spaced(500.millis))
+          test("should read from input stream and allow interruption") {
+            val chunkSize   = ZStream.DefaultChunkSize
+            val data        = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
+            def inputStream = new ByteArrayInputStream(data)
 
             for {
-              fiber <- slowStream.runCollect.fork
-              _ <- TestClock.adjust(2.seconds)    // Simulate 2 seconds of time passing
-              _ <- fiber.interrupt                // Interrupt after 1 second
-              result <- fiber.await               // Await gives us Exit[E, A] instead of trying to join directly
-            } yield assert(result)(isInterrupted) // Check that the fiber was interrupted
+              fiber <- fromInputStreamInterruptible(inputStream).runCollect.fork
+              _ <- ZIO.sleep(1.second) *> fiber.interrupt // Interrupt after 1 second
+              result <- fiber.join.either
+            } yield assert(result)(isLeft) // Expect the fiber to be interrupted
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>

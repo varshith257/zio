@@ -4360,14 +4360,10 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
                           Array.ofDim[Byte](chunkSize)
                         }
             // Log before attempting to read from InputStream
-            bytesRead <- ZIO.attemptBlockingCancelable {
-                           ZIO.logDebug("[ZStream] Attempting to read from InputStream...") *> // No need for .run
-                             is.read(bufArray)
-                         } {
-                           ZIO.logDebug("[ZStream] Fiber interrupted, closing InputStream...") *> ZIO
-                             .succeed(is.close())
-                             .ignore
-                         }
+            bytesRead <- ZIO
+                           .attemptBlockingCancelable(is.read(bufArray)) {
+                             ZIO.succeed(is.close()).ignore
+                           }
                            .refineToOrDie[IOException]
                            .asSomeError
             // Log after reading bytes

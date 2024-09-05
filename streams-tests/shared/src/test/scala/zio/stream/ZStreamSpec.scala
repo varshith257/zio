@@ -5412,7 +5412,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               fiber <- slowStream.runCollect.fork
               _ <- ZIO.sleep(1.second) *> fiber.interrupt // Interrupt after 1 second
               result <- fiber.join
-            } yield assert(result)(isLeft) // Expect the fiber to be interrupted
+      } yield assert(result)(isInterrupted) // Check that the fiber was interrupted
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>

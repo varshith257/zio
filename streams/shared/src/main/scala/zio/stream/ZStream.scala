@@ -4377,12 +4377,10 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
    * Creates an interruptible stream from a scoped `java.io.InputStream` value.
    */
   def fromInputStreamInterruptibleScoped[R](
-    is: ZIO[R, IOException, InputStream],
-    chunkSize: Int = ZStream.DefaultChunkSize
+    is: => ZIO[Scope with R, IOException, InputStream],
+    chunkSize: => Int = ZStream.DefaultChunkSize
   )(implicit trace: Trace): ZStream[R, IOException, Byte] =
-    ZStream.scoped {
-      ZIO.acquireRelease(is)(is => ZIO.succeed(is.close()).orDie)
-    }.flatMap(fromInputStreamInterruptible(_, chunkSize))
+    ZStream.scoped[R](is).flatMap(fromInputStreamInterruptible(_, chunkSize))
 
   /**
    * Creates a stream from an iterable collection of values

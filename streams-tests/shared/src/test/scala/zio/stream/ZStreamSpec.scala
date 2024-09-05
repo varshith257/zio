@@ -5403,11 +5403,14 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should read from input stream and allow interruption") {
             for {
-              data <- ZIO.succeed("zio-stream".getBytes)
-              slowStream <- ZIO.succeed(new SlowInputStream(data, 5.seconds)) // Slow InputStream with 5s delay
-              fiber <- ZStream.fromInputStreamInterruptible(slowStream).runCollect.fork
-              _ <- ZIO.sleep(2.seconds) // Sleep for 2 seconds before interruption
-              _      <- fiber.interrupt
+              val chunkSize = ZStream.DefaultChunkSize
+              val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte) 
+              inputStream <- ZIO.succeed(new InterruptibleInputStream(data))
+              fiber <- ZStream
+                         .fromInputStreamInterruptible(inputStream)
+                         .runCollect
+                         .fork
+              _ <- ZIO.sleep(1.second) *> fiber.interrupt // Simulate interruption
               result <- fiber.join.either
             } yield assert(result)(isLeft) // Expect the fiber to be interrupted
           }
@@ -5780,36 +5783,29 @@ object ZStreamSpec extends ZIOBaseSpec {
   case class Resource(idx: Int)
 }
 
-// Custom InputStream that simulates a delay before returning data
-class SlowInputStream(data: Array[Byte], delay: Duration) extends InputStream {
+// Mock InputStream that returns data in a blocking way but can be interrupted
+class InterruptibleInputStream(data: Array[Byte]) extends InputStream {
   private var index = 0
 
   override def read(): Int =
     if (index >= data.length) {
       -1 // End of stream
     } else {
-      try {
-        Thread.sleep(delay.toMillis) // Simulate slow read
-      } catch {
-        case _: InterruptedException => return -1 // Exit early if interrupted
-      }
+      // Simulate some delay or processing time without actually sleeping
       val byte = data(index)
       index += 1
-      byte & 0xff // Convert byte to int, handling negative values
+      Thread.`yield`() // Give control back, simulating a "blocking" read
+      byte & 0xff      // Convert byte to int
     }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int =
     if (index >= data.length) {
       -1 // End of stream
     } else {
-      try {
-        Thread.sleep(delay.toMillis) // Simulate slow read
-      } catch {
-        case _: InterruptedException => return -1 // Exit early if interrupted
-      }
       val toRead = math.min(len, data.length - index)
-      java.lang.System.arraycopy(data, index, b, off, toRead) // Use java.lang.System.arraycopy
+      java.lang.System.arraycopy(data, index, b, off, toRead)
       index += toRead
+      Thread.`yield`() // Give control back, simulating a "blocking" read
       toRead
     }
 }

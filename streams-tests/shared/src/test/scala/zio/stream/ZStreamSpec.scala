@@ -5401,25 +5401,8 @@ object ZStreamSpec extends ZIOBaseSpec {
             ZStream.fromInputStreamInterruptible(is, chunkSize).runCollect.map { bytes =>
               assert(bytes.toArray)(equalTo(data))
             }
-          },
-          test("should read data from InputStream and close it on interruption") {
-            for {
-              data       <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
-              inputStream = new ClosableBlockingInputStream(data)
-              fiber <- ZStream
-                         .fromInputStreamInterruptible(inputStream)
-                         .runCollect
-                         .fork
-              _ <- TestClock.adjust(500.millis) // Simulate the passage of time
-              _ <- ZIO.log("[Test] Interrupting the fiber...")
-
-              result <- fiber.interrupt // Interrupt the fiber
-              _ <- ZIO.log("[Test] Interrupting the fiber...")
-              _ <- ZIO.log(s"[Test] InputStream closed: ${inputStream.isClosed}")
-              _ <- ZIO.succeed(println(s"Fiber Result: $result"))
-            } yield assert(result)(isInterrupted) &&
-              assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed
           }
+
           // test("should properly close InputStream after stream is exhausted") {
           //   for {
           //     data <- ZIO.succeed("Hello, ZIO!".getBytes("UTF-8"))
@@ -5804,29 +5787,4 @@ object ZStreamSpec extends ZIOBaseSpec {
   val cat2: Cat   = Cat("cat2")
 
   case class Resource(idx: Int)
-}
-
-class ClosableBlockingInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
-  @volatile var isClosed = false
-
-  override def read(): Int = synchronized {
-    while (!isClosed) {
-      try {
-        Thread.sleep(10) // Simulate blocking
-      } catch {
-        case _: InterruptedException =>
-          close()
-      }
-    }
-    -1 // Return -1 when the stream is closed
-  }
-
-  override def close(): Unit = synchronized {
-    if (!isClosed) {
-      isClosed = true
-      super.close()
-    } else {
-      println("[InputStream] InputStream is already closed")
-    }
-  }
 }

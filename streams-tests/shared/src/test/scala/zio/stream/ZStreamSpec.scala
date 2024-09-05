@@ -5411,11 +5411,11 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .runCollect
                          .fork
               _ <- TestClock.adjust(100.millis) // Simulate the passage of time
-              _ <- ZIO.logDebug("[Test] Interrupting the fiber...")
+              _ <- ZIO.log("[Test] Interrupting the fiber...")
 
               result <- fiber.interrupt // Interrupt the fiber
-              _ <- ZIO.logDebug("[Test] Interrupting the fiber...")
-              _ <- ZIO.logDebug(s"[Test] InputStream closed: ${inputStream.isClosed}")
+              _ <- ZIO.log("[Test] Interrupting the fiber...")
+              _ <- ZIO.log(s"[Test] InputStream closed: ${inputStream.isClosed}")
               _ <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&
               assert(inputStream.isClosed)(isTrue) // Ensure InputStream was closed

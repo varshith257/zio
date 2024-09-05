@@ -5407,7 +5407,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             def inputStream = new ByteArrayInputStream(data)
 
             for {
-              fiber <- fromInputStreamInterruptible(inputStream).runCollect.fork
+              fiber <- ZStream.fromInputStreamInterruptible(inputStream).runCollect.fork
               _ <- ZIO.sleep(1.second) *> fiber.interrupt // Interrupt after 1 second
               result <- fiber.join.either
             } yield assert(result)(isLeft) // Expect the fiber to be interrupted

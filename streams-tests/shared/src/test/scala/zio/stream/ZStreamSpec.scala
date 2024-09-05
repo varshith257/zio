@@ -9,11 +9,10 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, nonFlaky, scala2Only, withLiveClock}
 import zio.test._
 
-import java.io.{ByteArrayInputStream, IOException}
+import java.io.{ByteArrayInputStream, IOException, InputStream}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
-// import scala.language.reflectiveCalls
 
 object ZStreamSpec extends ZIOBaseSpec {
   import ZIOTag._
@@ -5404,13 +5403,13 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should read from input stream and allow interruption") {
             for {
-              data        <- ZIO.succeed("zio-stream".getBytes)
-              inputStream <- ZIO.succeed(new ByteArrayInputStream(data))
-              fiber       <- ZStream.fromInputStreamInterruptible(inputStream).runCollect.fork
-              _ <- TestClock.adjust(5.seconds) // Simulate time passing for testing
+              data <- ZIO.succeed("zio-stream".getBytes)
+              slowStream <- ZIO.succeed(new SlowInputStream(data, 5.seconds)) // Slow InputStream with 5s delay
+              fiber <- ZStream.fromInputStreamInterruptible(slowStream).runCollect.fork
+              _ <- ZIO.sleep(2.seconds) // Sleep for 2 seconds before interruption
               _      <- fiber.interrupt
               result <- fiber.join.either
-            } yield assert(result)(isLeft)
+            } yield assert(result)(isLeft) // Expect the fiber to be interrupted
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
@@ -5779,4 +5778,30 @@ object ZStreamSpec extends ZIOBaseSpec {
   val cat2: Cat   = Cat("cat2")
 
   case class Resource(idx: Int)
+}
+
+// Custom InputStream that simulates a delay before returning data
+class SlowInputStream(data: Array[Byte], delay: Duration) extends InputStream {
+  private var index = 0
+
+  override def read(): Int =
+    if (index >= data.length) {
+      -1 // End of stream
+    } else {
+      Thread.sleep(delay.toMillis) // Simulate slow read
+      val byte = data(index)
+      index += 1
+      byte
+    }
+
+  override def read(b: Array[Byte], off: Int, len: Int): Int =
+    if (index >= data.length) {
+      -1 // End of stream
+    } else {
+      Thread.sleep(delay.toMillis) // Simulate slow read
+      val toRead = math.min(len, data.length - index)
+      System.arraycopy(data, index, b, off, toRead)
+      index += toRead
+      toRead
+    }
 }

@@ -5428,7 +5428,8 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fork
 
               // Wait for a second and then interrupt the fiber
-              _ <- ZIO.sleep(1.second) *> fiber.interrupt
+              _ <- TestClock.adjust(5.seconds) // Simulate time passing for testing
+              _ <- fiber.interrupt
               result <- fiber.join.either // Collect the result
 
             } yield assert(result)(isLeft) // Expect the fiber to be interrupted
@@ -5801,4 +5802,3 @@ object ZStreamSpec extends ZIOBaseSpec {
 
   case class Resource(idx: Int)
 }
-

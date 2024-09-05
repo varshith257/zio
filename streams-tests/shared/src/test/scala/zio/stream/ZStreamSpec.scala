@@ -5403,15 +5403,34 @@ object ZStreamSpec extends ZIOBaseSpec {
           },
           test("should read from input stream and allow interruption") {
             val chunkSize = ZStream.DefaultChunkSize
-            val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
+            val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte) // Create test data
+
             for {
-              inputStream <- ZIO.succeed(new InterruptibleInputStream(data))
+              // Simulate a blocking InputStream that yields control back to the scheduler
+              inputStream <- ZIO.succeed(new InputStream {
+                               private var index = 0
+
+                               override def read(): Int =
+                                 if (index >= data.length) -1
+                                 else {
+                                   // Simulate a small delay on each read
+                                   Thread.sleep(500) // Simulate blocking read
+                                   val byte = data(index)
+                                   index += 1
+                                   byte & 0xff
+                                 }
+                             })
+
+              // Start the fiber and attempt to read the data
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .runCollect
                          .fork
-              _ <- ZIO.sleep(1.second) *> fiber.interrupt // Simulate interruption
-              result <- fiber.join.either
+
+              // Wait for a second and then interrupt the fiber
+              _ <- ZIO.sleep(1.second) *> fiber.interrupt
+              result <- fiber.join.either // Collect the result
+
             } yield assert(result)(isLeft) // Expect the fiber to be interrupted
           }
         ),
@@ -5783,29 +5802,3 @@ object ZStreamSpec extends ZIOBaseSpec {
   case class Resource(idx: Int)
 }
 
-// Mock InputStream that returns data in a blocking way but can be interrupted
-class InterruptibleInputStream(data: Array[Byte]) extends InputStream {
-  private var index = 0
-
-  override def read(): Int =
-    if (index >= data.length) {
-      -1 // End of stream
-    } else {
-      // Simulate some delay or processing time without actually sleeping
-      val byte = data(index)
-      index += 1
-      Thread.`yield`() // Give control back, simulating a "blocking" read
-      byte & 0xff      // Convert byte to int
-    }
-
-  override def read(b: Array[Byte], off: Int, len: Int): Int =
-    if (index >= data.length) {
-      -1 // End of stream
-    } else {
-      val toRead = math.min(len, data.length - index)
-      java.lang.System.arraycopy(data, index, b, off, toRead)
-      index += toRead
-      Thread.`yield`() // Give control back, simulating a "blocking" read
-      toRead
-    }
-}

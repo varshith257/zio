@@ -5411,7 +5411,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .runCollect
                          .fork
               _ <- TestClock.adjust(100.millis) // Simulate the passage of time
-              result <- fiber.interrupt         // Interrupt the fiber
+              _ <- fiber.interrupt              // Interrupt the fiber
               result <- fiber.await
               _      <- ZIO.succeed(println(s"Fiber Result: $result"))
             } yield assert(result)(isInterrupted) &&

@@ -5788,17 +5788,25 @@ class SlowInputStream(data: Array[Byte], delay: Duration) extends InputStream {
     if (index >= data.length) {
       -1 // End of stream
     } else {
-      Thread.sleep(delay.toMillis) // Simulate slow read
+      try {
+        Thread.sleep(delay.toMillis) // Simulate slow read
+      } catch {
+        case _: InterruptedException => return -1 // Exit early if interrupted
+      }
       val byte = data(index)
       index += 1
-      byte & 0xff // Convert byte to int, handling negative values correctly
+      byte & 0xff // Convert byte to int, handling negative values
     }
 
   override def read(b: Array[Byte], off: Int, len: Int): Int =
     if (index >= data.length) {
       -1 // End of stream
     } else {
-      Thread.sleep(delay.toMillis) // Simulate slow read
+      try {
+        Thread.sleep(delay.toMillis) // Simulate slow read
+      } catch {
+        case _: InterruptedException => return -1 // Exit early if interrupted
+      }
       val toRead = math.min(len, data.length - index)
       java.lang.System.arraycopy(data, index, b, off, toRead) // Use java.lang.System.arraycopy
       index += toRead

@@ -446,6 +446,19 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   )(implicit trace: Trace): Gen[R, A] =
     Gen(ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
 
+  def fromIterableWithSeed[R, A](
+    as: Iterable[A],
+    seed: Long,
+    shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
+  )(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      for {
+        random <- ZIO.randomWith(r => ZIO.succeed(r)) // Get the Random service
+        _ <- random.setSeed(seed)                     // Set the seed before generating UUIDs
+        gen <- ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a))))
+      } yield gen
+    }
+
   /**
    * Constructs a generator from a function that uses randomness. The returned
    * generator will not have any shrinking.
@@ -863,6 +876,15 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(nextUUID)
+
+  def uuidWithSeed(seed: Long)(implicit trace: Trace): Gen[Any, UUID] =
+    Gen.fromZIO {
+      for {
+        random <- ZIO.randomWith(r => ZIO.succeed(r)) // Get the current Random service
+        _ <- random.setSeed(seed)                     // Set the seed
+        uuid <- random.nextUUID                       // Generate a UUID using the seeded Random
+      } yield uuid
+    }
 
   /**
    * A sized generator of vectors.

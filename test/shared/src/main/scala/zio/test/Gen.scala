@@ -860,8 +860,10 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * A generator of universally unique identifiers. The returned generator will
    * not have any shrinking.
    */
-  def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(ZIO.randomWith(_.nextUUID))
+  val uuidGen: Gen[Any, UUID] = Gen.fromZIO {
+    // Use ZIO to ensure a fresh random state is used for each UUID generation.
+    ZIO.succeed(UUID.randomUUID())
+  }
 
   /**
    * A sized generator of vectors.

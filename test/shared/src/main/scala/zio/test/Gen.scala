@@ -720,8 +720,8 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * @return
    *   A new `Gen` instance with scoped randomness for the given generator.
    */
-  def scopedRandom[A](gen: Gen[Random, A])(implicit trace: Trace): Gen[Random, A] =
-    Gen.fromZIO(ZIO.randomWith(random => gen.sample.provideEnvironment(ZEnvironment(random))))
+  def scopedRandom[A](gen: Gen[Random, A])(implicit trace: Trace): Gen[Any, A] =
+    Gen.fromZIO(ZIO.randomWith(random => gen.sample.runHead.map(_.get).provideEnvironment(ZEnvironment(random))))
 
   /**
    * A sized generator of sets.

@@ -5394,23 +5394,27 @@ object ZStreamSpec extends ZIOBaseSpec {
         ),
         suite("fromInputStreamInterruptible")(
           test("should read all data from InputStream correctly") {
-            val chunkSize = 1024 // Reduced chunk size
+            val chunkSize = ZStream.DefaultChunkSize
             val data      = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
             def is        = new ByteArrayInputStream(data)
             ZStream.fromInputStreamInterruptible(is, chunkSize).runCollect.map { bytes =>
               assert(bytes.toArray)(equalTo(data))
             }
           },
-          test("should read from input stream and allow interruption") {
-            val chunkSize   = 1024 // Reduced chunk size
-            val data        = Array.tabulate[Byte](chunkSize * 5 / 2)(_.toByte)
-            def inputStream = new ByteArrayInputStream(data)
-
+          test("ZStream.fromInputStreamInterruptible should handle interruption with ByteArrayInputStream") {
             for {
-              fiber <- ZStream.fromInputStreamInterruptible(inputStream).runCollect.fork
-              _ <- ZIO.sleep(1.second) *> fiber.interrupt // Interrupt after 1 second
-              result <- fiber.join.either
-            } yield assert(result)(isLeft) // Expect the fiber to be interrupted
+              latch <- Promise.make[Nothing, Unit] // Latch to wait for stream start
+              data <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
+              inputStream = new ByteArrayInputStream(data) // Use ByteArrayInputStream for test
+              fiber <- ZStream
+                         .fromInputStreamInterruptible(inputStream)
+                         .tap(_ => latch.succeed(())) // Signal that the stream has started
+                         .runCollect
+                         .fork
+              _ <- latch.await                    // Wait for the stream to start
+              _ <- fiber.interrupt                // Interrupt the stream
+              result <- fiber.await               // Wait for the fiber to finish
+            } yield assert(result)(isInterrupted) // Verifies that the fiber was interrupted
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>

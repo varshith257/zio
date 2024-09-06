@@ -4349,17 +4349,28 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
 
   def fromInputStreamInterruptible(
     is: => InputStream,
-    chunkSize: Int = ZStream.DefaultChunkSize
+    chunkSize: => Int = ZStream.DefaultChunkSize
   )(implicit trace: Trace): ZStream[Any, IOException, Byte] =
-    ZStream.repeatZIOChunkOption {
-      ZIO.blocking {
-        ZIO.attemptBlockingCancelable {
-          val bufArray  = Array.ofDim[Byte](chunkSize)
-          val bytesRead = is.read(bufArray)
-          if (bytesRead < 0) None // End of stream
-          else Some(Chunk.fromArray(bufArray.take(bytesRead)))
-        }(ZIO.succeed(is.close()).ignore) // Ensure InputStream is closed on interrupt
-      }.refineOrDie { case e: IOException => e }.some
+    ZStream.succeed((is, chunkSize)).flatMap { case (is, chunkSize) =>
+      ZStream.repeatZIOChunkOption {
+        for {
+          bufArray <- ZIO.succeed(Array.ofDim[Byte](chunkSize))
+          bytesRead <- ZIO
+                         .attemptBlockingCancelable(is.read(bufArray))(
+                           ZIO.succeed(is.close()).ignore
+                         )
+                         .refineToOrDie[IOException]
+                         .asSomeError
+          bytes <- if (bytesRead < 0)
+                     ZIO.fail(None) // End of stream
+                   else if (bytesRead == 0)
+                     ZIO.succeed(Chunk.empty)
+                   else if (bytesRead < chunkSize)
+                     ZIO.succeed(Chunk.fromArray(bufArray).take(bytesRead))
+                   else
+                     ZIO.succeed(Chunk.fromArray(bufArray))
+        } yield bytes
+      }
     }
 
   /**

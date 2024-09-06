@@ -103,9 +103,10 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
-      // fresh sampling of the next generator each time flatMap is invoked
       self.sample.flatMap { sample =>
-        f(sample.value).sample
+        val values  = f(sample.value).sample
+        val shrinks = Gen(sample.shrink).flatMap(f).sample
+        values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
 
@@ -113,7 +114,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen(sample.map(sample => sample.map(f)))
+    Gen(sample.map(_.map(f)))
 
   /**
    * Maps an effectual function over a generator.
@@ -160,6 +161,36 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def runHead(implicit trace: Trace): ZIO[R, Nothing, Option[A]] =
     sample.map(_.value).runHead
+
+  /**
+   * Ensures that the random state used in this generator is scoped and isolated
+   * from other generators. This is useful in cases where deterministic and
+   * random generators are combined in a `for-comprehension`, to avoid
+   * interference in the random state between different parts of the
+   * comprehension.
+   *
+   * This method wraps a random generator with its own independent random state,
+   * ensuring that the order of appearance in a `for-comprehension` (whether
+   * before or after a deterministic generator) does not affect the output of
+   * the random generator.
+   *
+   * For example:
+   * {{{
+   *   for {
+   *     id <- Gen.uuid
+   *     _  <- Gen.fromIterable(1 to 1000)
+   *   } yield id
+   * }}}
+   * In this case, `Gen.uuid` is guaranteed to generate fresh UUIDs, regardless
+   * of whether it appears before or after `Gen.fromIterable`.
+   *
+   * @param gen
+   *   The random-based generator whose state needs to be scoped.
+   * @return
+   *   A new `Gen` instance with scoped randomness for the given generator.
+   */
+  def scopedRandom[R1 <: R, A1](gen: Gen[R1, A1])(implicit trace: Trace): Gen[R1, A1] =
+    Gen.fromZIO(ZIO.randomWith(random => gen.sample.provide(ZLayer.succeed(random))))
 
   /**
    * Composes this generator with the specified generator to create a cartesian
@@ -860,7 +891,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(nextUUID)
+    scopedRandom(Gen.fromZIO(ZIO.randomWith(_.nextUUID)))
 
   /**
    * A sized generator of vectors.

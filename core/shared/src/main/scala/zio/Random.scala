@@ -67,6 +67,29 @@ trait Random extends Serializable { self =>
       collection: Collection[A]
     )(implicit bf: BuildFrom[Collection[A], A, Collection[A]], unsafe: Unsafe): Collection[A]
   }
+  trait RandomScoped extends Random {
+
+    // Scoped method to isolate random state for a generator
+    def scoped[R, A](gen: Gen[R, A])(implicit trace: Trace): UIO[A] =
+      for {
+        random <- ZIO.random // Get the current random instance
+        a <- gen.sample.provideSomeLayer(ZLayer.succeed(random)).runHead.map(_.get.value)
+      } yield a
+
+    // Example: Scoped random UUID generator
+    override def nextUUID(implicit trace: Trace): UIO[UUID] = scoped {
+      Gen.fromZIO(
+        ZIO.succeed {
+          val mostSigBits  = scala.util.Random.nextLong()
+          val leastSigBits = scala.util.Random.nextLong()
+          new UUID(
+            (mostSigBits & ~0x0000f000L) | 0x00004000L,
+            (leastSigBits & ~(0xc0000000L << 32)) | (0x80000000L << 32)
+          )
+        }
+      )
+    }
+  }
 
   def unsafe: UnsafeAPI =
     new UnsafeAPI {
@@ -260,7 +283,7 @@ object Random extends Serializable {
           scala.util.Random.nextString(length)
 
         override def nextUUID()(implicit unsafe: Unsafe): UUID =
-          Random.nextUUIDWith(() => nextLong())
+          scoped(Gen.uuid) // Use scoped randomness for UUIDs
 
         override def setSeed(seed: Long)(implicit unsafe: Unsafe): Unit =
           scala.util.Random.setSeed(seed)

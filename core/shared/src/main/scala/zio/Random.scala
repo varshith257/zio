@@ -259,9 +259,14 @@ object Random extends Serializable {
         override def nextString(length: Int)(implicit unsafe: Unsafe): String =
           scala.util.Random.nextString(length)
 
-        override def nextUUID()(implicit unsafe: Unsafe): UUID =
-          Random.nextUUIDWith(() => nextLong())
-
+        override def nextUUID()(implicit unsafe: Unsafe): UUID = {
+          val mostSigBits  = nextLong()(unsafe)
+          val leastSigBits = nextLong()(unsafe)
+          new UUID(
+            (mostSigBits & ~0x0000f000) | 0x00004000,                   // Set version to 4
+            (leastSigBits & ~(0xc0000000L << 32)) | (0x80000000L << 32) // Set variant to IETF variant
+          )
+        }
         override def setSeed(seed: Long)(implicit unsafe: Unsafe): Unit =
           scala.util.Random.setSeed(seed)
 
@@ -387,8 +392,14 @@ object Random extends Serializable {
         override def nextString(length: Int)(implicit unsafe: Unsafe): String =
           random.nextString(length)
 
-        override def nextUUID()(implicit unsafe: Unsafe): UUID =
-          Random.nextUUIDWith(() => nextLong())
+        override def nextUUID()(implicit unsafe: Unsafe): UUID = {
+          val mostSigBits  = random.nextLong()
+          val leastSigBits = random.nextLong()
+          new UUID(
+            (mostSigBits & ~0x0000f000) | 0x00004000,                   // Set version to 4
+            (leastSigBits & ~(0xc0000000L << 32)) | (0x80000000L << 32) // Set variant to IETF variant
+          )
+        }
 
         override def setSeed(seed: Long)(implicit unsafe: Unsafe): Unit =
           random.setSeed(seed)

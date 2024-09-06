@@ -878,13 +878,13 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(nextUUID)
 
-  def uuidWithSeed(seed: Long)(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO {
-      for {
-        random <- ZIO.randomWith(r => ZIO.succeed(r)) // Get the current Random service
-        _ <- random.setSeed(seed)                     // Set the seed
-        uuid <- random.nextUUID                       // Generate a UUID using the seeded Random
-      } yield uuid
+  def uuidWithShuffle(implicit trace: Trace): Gen[Any, UUID] =
+    Gen {
+      ZStream.fromZIO(for {
+        random <- ZIO.randomWith(r => ZIO.succeed(r))
+        // Optionally shuffle or reset seed here to ensure a fresh random context
+        uuid <- random.nextUUID
+      } yield Sample.noShrink(uuid))
     }
 
   /**

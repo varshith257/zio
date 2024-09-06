@@ -857,13 +857,16 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     const(())
 
   /**
-   * A generator of universally unique identifiers. The returned generator will
-   * not have any shrinking.
+   * A generator of universally unique identifiers (UUID). This generator will
+   * guarantee unique UUIDs by ensuring each fiber's random state is refreshed,
+   * preventing re-use of the same seed.
    */
-  val uuidGen: Gen[Any, UUID] = Gen.fromZIO {
-    // Use ZIO to ensure a fresh random state is used for each UUID generation.
-    ZIO.succeed(UUID.randomUUID())
-  }
+  def uuid(implicit trace: Trace): Gen[Any, UUID] =
+    Gen.fromZIO {
+      ZIO.randomWith { random =>
+        random.nextUUID
+      }
+    }
 
   /**
    * A sized generator of vectors.

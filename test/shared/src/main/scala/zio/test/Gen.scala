@@ -723,12 +723,9 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   def scopedRandom[R1 <: Random, A1](gen: Gen[R1, A1])(implicit trace: Trace): Gen[Any, A1] =
     Gen.fromZIO {
       for {
-        random <- ZIO.random                             // Fetch a new random instance
-        sample <- gen.sample.runHead.someOrFailException // Get the first sample or fail if none
-        result <- ZIO.environment[R1].flatMap { _ =>
-                    sample.provideEnvironment(ZEnvironment(random))
-                  }
-      } yield result
+        random <- ZIO.random                                  // Fetch a new random instance
+        sample <- gen.sample.runHead.someOrFailException      // Get the first sample or fail if none
+      } yield sample.provideEnvironment(ZEnvironment(random)) // Provide the random environment
     }
 
   /**

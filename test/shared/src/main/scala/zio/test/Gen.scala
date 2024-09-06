@@ -113,7 +113,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen(sample.map(sample => Sample(f(sample.value), sample.shrink)))
+    Gen(sample.map(sample => sample.map(f)))
 
   /**
    * Maps an effectual function over a generator.

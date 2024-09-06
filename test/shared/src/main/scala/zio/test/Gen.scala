@@ -103,10 +103,9 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
+      // fresh sampling of the next generator each time flatMap is invoked
       self.sample.flatMap { sample =>
-        val values  = f(sample.value).sample
-        val shrinks = Gen(sample.shrink).flatMap(f).sample
-        values.map(_.flatMap(Sample(_, shrinks)))
+        f(sample.value).sample
       }
     }
 
@@ -114,7 +113,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen(sample.map(_.map(f)))
+    Gen(sample.map(sample => Sample(f(sample.value), sample.shrink)))
 
   /**
    * Maps an effectual function over a generator.
@@ -857,16 +856,11 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     const(())
 
   /**
-   * A generator of universally unique identifiers (UUID). This generator will
-   * guarantee unique UUIDs by ensuring each fiber's random state is refreshed,
-   * preventing re-use of the same seed.
+   * A generator of universally unique identifiers. The returned generator will
+   * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO {
-      ZIO.randomWith { random =>
-        random.nextUUID
-      }
-    }
+    Gen.fromZIO(nextUUID)
 
   /**
    * A sized generator of vectors.

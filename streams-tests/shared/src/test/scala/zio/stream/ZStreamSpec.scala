@@ -5415,6 +5415,30 @@ object ZStreamSpec extends ZIOBaseSpec {
               _ <- fiber.interrupt                // Interrupt the stream
               result <- fiber.await               // Wait for the fiber to finish
             } yield assert(result)(isInterrupted) // Verifies that the fiber was interrupted
+          },
+          test(
+            "ZStream.fromInputStreamInterruptible should handle long-running streams and interrupt mid-read using ByteArrayInputStream"
+          ) {
+            for {
+              latch <- Promise.make[Nothing, Unit] // Latch to ensure the stream starts
+              data <- ZIO.succeed("Long-running stream test!".getBytes("UTF-8"))
+              // ByteArrayInputStream simulates reading from a byte array
+              inputStream = new ByteArrayInputStream(data) {
+                              override def read(buf: Array[Byte], off: Int, len: Int): Int = {
+                                Thread.sleep(500) // Simulate slow reading of the byte array
+                                super.read(buf, off, len)
+                              }
+                            }
+              fiber <- ZStream
+                         .fromInputStreamInterruptible(inputStream)
+                         .tap(_ => latch.succeed(())) // Signal that the stream has started
+                         .runCollect
+                         .fork
+              _ <- latch.await                    // Wait for the stream to start
+              _ <- ZIO.sleep(1.second)            // Allow some time for reading
+              _ <- fiber.interrupt                // Interrupt the fiber in the middle of reading
+              result <- fiber.await               // Wait for the fiber to finish
+            } yield assert(result)(isInterrupted) // Verifies that the fiber was interrupted mid-read
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>

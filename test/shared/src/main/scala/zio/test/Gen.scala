@@ -876,7 +876,12 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(nextUUID)
+    Gen.fromZIO {
+      for {
+        uuid <- nextUUID
+        _    <- ZIO.logInfo(s"Generated UUID: $uuid")
+      } yield uuid
+    }
 
   def uuidWithShuffle(implicit trace: Trace): Gen[Any, UUID] =
     Gen {

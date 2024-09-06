@@ -727,20 +727,20 @@ object GenSpec extends ZIOBaseSpec {
       check(
         for {
           _  <- Gen.fromIterable(List(1, 2, 3, 4))
-          id <- Gen.uuidWithShuffle
+          id <- Gen.uuid
         } yield id
       ) { id =>
-        ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+        ZIO.logInfo(s"[fromIterable before uuid] Generated UUID: $id") *> assertCompletes
       }
     },
     test("uuid before fromIterable") {
       check(
         for {
-          id <- Gen.uuidWithShuffle // Use the same seed as above
+          id <- Gen.uuid // Use the same seed as above
           _ <- Gen.fromIterable(List(1, 2, 3, 4))
         } yield id
       ) { id =>
-        ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+        ZIO.logInfo(s"[uuid before fromIterable] Generated UUID: $id") *> assertCompletes
       }
     },
     test("unfoldGen") {

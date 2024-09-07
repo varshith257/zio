@@ -104,7 +104,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        ZIO.withRandom { random =>
+        ZIO.withRandom { (random: ZRandom) =>
           //Split the random state to isolate it for next generator
           val (newRandom, childRandom) = random.split
           val values                   = f(sample.value).sample.provideEnvironment(ZEnvironment(newRandom))

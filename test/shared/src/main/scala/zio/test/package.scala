@@ -402,7 +402,7 @@ package object test extends CompileVariants {
     trace: Trace
   ): ZIO[checkConstructor.OutEnvironment, checkConstructor.OutError, TestResult] =
     TestConfig.samples.flatMap { n =>
-      ZIO.withRandom { random =>
+      ZIO.withRandom { (random: ZRandom) =>
         //Split the random state at top level
         val (newRandom, childRandom) = random.split
         checkStream(rv.sample.forever.provideEnvironment(ZEnvironment(newRandom)).take(n.toLong)) { a =>

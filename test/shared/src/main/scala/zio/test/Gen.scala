@@ -104,12 +104,9 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        //Split the random state to isolate it for next generator
-        ZStream.fromZIO(Random.nextInt).flatMap { _ =>
-          val values  = f(sample.value).sample
-          val shrinks = Gen(sample.shrink).flatMap(f).sample
-          values.map(_.flatMap(Sample(_, shrinks)))
-        }
+        val values  = provideRandomEnvironment(f(sample.value)).sample
+        val shrinks = provideRandomEnvironment(Gen(sample.shrink).flatMap(f)).sample
+        values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
 
@@ -130,6 +127,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def noShrink(implicit trace: Trace): Gen[R, A] =
     reshrink(Sample.noShrink)
+
+  def provideRandomEnvironment[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      ZStream.fromZIO(Random.nextInt).flatMap { _ =>
+        gen.sample // Ensure each part of the generator has a fresh random state
+      }
+    }
 
   /**
    * Discards the shrinker for this generator and applies a new shrinker by

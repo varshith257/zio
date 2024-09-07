@@ -164,9 +164,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def runHead(implicit trace: Trace): ZIO[R, Nothing, Option[A]] =
     sample.map(_.value).runHead
 
-  private def withFreshRandom[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
-
   /**
    * Composes this generator with the specified generator to create a cartesian
    * product of elements.
@@ -865,6 +862,9 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * A generator of universally unique identifiers. The returned generator will
    * not have any shrinking.
    */
+  private def withFreshRandom[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
+    Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
+
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(Random.nextUUID)
 

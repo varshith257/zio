@@ -102,19 +102,19 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
-    Gen {
+    withFreshRandom(Gen {
       self.sample.flatMap { sample =>
         val values  = f(sample.value).sample
         val shrinks = Gen(sample.shrink).flatMap(f).sample
         values.map(_.flatMap(Sample(_, shrinks)))
       }
-    }
+    })
 
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen(sample.map(_.map(f)))
+    withFreshRandom(Gen(sample.map(_.map(f))))
 
   /**
    * Maps an effectual function over a generator.
@@ -127,24 +127,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def noShrink(implicit trace: Trace): Gen[R, A] =
     reshrink(Sample.noShrink)
-
-  def provideRandomEnvironment[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
-    Gen {
-      ZStream.fromZIO(Random.nextInt).flatMap { _ =>
-        gen.sample // Ensure each part of the generator has a fresh random state
-      }
-    }
-
-  def randomFirst[R <: R, A](randomGen: Gen[R, A], detGen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
-    Gen {
-      // Generate random values first
-      randomGen.sample.flatMap { randomSample =>
-        // Now combine with deterministic values
-        detGen.sample.map { detSample =>
-          Sample(randomSample.value, detSample.shrink)
-        }
-      }
-    }
 
   /**
    * Discards the shrinker for this generator and applies a new shrinker by
@@ -179,6 +161,9 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def runHead(implicit trace: Trace): ZIO[R, Nothing, Option[A]] =
     sample.map(_.value).runHead
+
+  private def withFreshRandom[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
+    Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
 
   /**
    * Composes this generator with the specified generator to create a cartesian
@@ -879,7 +864,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(nextUUID)
+    Gen.fromZIO(Random.nextUUID)
 
   /**
    * A sized generator of vectors.

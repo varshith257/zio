@@ -102,19 +102,19 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
-    withFreshRandom(Gen {
+    Gen {
       self.sample.flatMap { sample =>
         val values  = f(sample.value).sample
         val shrinks = Gen(sample.shrink).flatMap(f).sample
         values.map(_.flatMap(Sample(_, shrinks)))
       }
-    })
+    }
 
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    withFreshRandom(Gen(sample.map(_.map(f))))
+    Gen(sample.map(_.map(f)))
 
   /**
    * Maps an effectual function over a generator.

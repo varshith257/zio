@@ -866,7 +866,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
 
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(Random.nextUUID)
+    withFreshRandom(Gen.fromZIO(Random.nextUUID)) // Ensure fresh random state for UUID
 
   /**
    * A sized generator of vectors.

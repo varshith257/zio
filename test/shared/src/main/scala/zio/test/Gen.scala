@@ -105,12 +105,11 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       self.sample.flatMap { sample =>
         //Split the random state to isolate it for next generator
-        Random.nextInt.flatMap { _ =>
+        ZStream.fromZIO(Random.nextInt).flatMap { _ =>
           val values  = f(sample.value).sample
           val shrinks = Gen(sample.shrink).flatMap(f).sample
           values.map(_.flatMap(Sample(_, shrinks)))
         }
-
       }
     }
 

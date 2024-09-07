@@ -401,7 +401,15 @@ package object test extends CompileVariants {
     sourceLocation: SourceLocation,
     trace: Trace
   ): ZIO[checkConstructor.OutEnvironment, checkConstructor.OutError, TestResult] =
-    TestConfig.samples.flatMap(n => checkStream(rv.sample.forever.take(n.toLong))(a => checkConstructor(test(a))))
+    TestConfig.samples.flatMap { n =>
+      ZIO.withRandom { random =>
+        //Split the random state at top level
+        val (newRandom, childRandom) = random.split
+        checkStream(rv.sample.forever.provideEnvironment(ZEnvironment(newRandom)).take(n.toLong)) { a =>
+          checkConstructor(test(a)).provideEnvironment(ZEnvironment(childRandom))
+        }
+      }
+    }
 
   /**
    * A version of `check` that accepts two random variables.

@@ -104,10 +104,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        val randomAdvance = Random.nextLong // Manually advance random state
-        val values        = f(sample.value).sample
-        val shrinks       = Gen(sample.shrink).flatMap(f).sample
-        values.map(_.flatMap(Sample(_, shrinks)))
+        ZIO.withRandom { random =>
+          //Split the random state to isolate it for next generator
+          val (newRandom, childRandom) = random.split
+          val values                   = f(sample.value).sample.provideEnvironment(ZEnvironment(newRandom))
+          val shrinks                  = Gen(sample.shrink).flatMap(f).sample.provideEnvironment(ZEnvironment(childRandom))
+          values.map(_.flatMap(Sample(_, shrinks)))
+        }
       }
     }
 
@@ -445,20 +448,6 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
   )(implicit trace: Trace): Gen[R, A] =
     Gen(ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
-
-  // def fromIterableWithSeed[R, A](
-  //   as: Iterable[A],
-  //   seed: Long,
-  //   shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
-  // )(implicit trace: Trace): Gen[R, A] =
-  //   Gen {
-  //     for {
-  //       random <- ZStream.fromZIO(ZIO.randomWith(r => ZIO.succeed(r))) // Convert ZIO to ZStream
-
-  //       _ <- random.setSeed(seed) // Set the seed before generating UUIDs
-  //       gen <- ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a))))
-  //     } yield gen
-  //   }
 
   /**
    * Constructs a generator from a function that uses randomness. The returned
@@ -876,21 +865,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO {
-      for {
-        uuid <- nextUUID
-        _    <- ZIO.logInfo(s"Generated UUID: $uuid")
-      } yield uuid
-    }
-
-  def uuidWithShuffle(implicit trace: Trace): Gen[Any, UUID] =
-    Gen {
-      ZStream.fromZIO(for {
-        random <- ZIO.randomWith(r => ZIO.succeed(r))
-        // Optionally shuffle or reset seed here to ensure a fresh random context
-        uuid <- random.nextUUID
-      } yield Sample.noShrink(uuid))
-    }
+    Gen.fromZIO(nextUUID)
 
   /**
    * A sized generator of vectors.

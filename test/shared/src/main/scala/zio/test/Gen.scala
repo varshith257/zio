@@ -104,15 +104,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        Random.live.flatMap { random =>
-          //Split the random state to isolate it for next generator
-          random.nextInt.flatMap { _ =>
-            val (newRandom, childRandom) = random.split
-            val values                   = f(sample.value).sample.withRandom(newRandom)
-            val shrinks                  = Gen(sample.shrink).flatMap(f).sample.withRandom(childRandom)
-            values.map(_.flatMap(Sample(_, shrinks)))
-          }
+        //Split the random state to isolate it for next generator
+        Random.nextInt.flatMap { _ =>
+          val values  = f(sample.value).sample
+          val shrinks = Gen(sample.shrink).flatMap(f).sample
+          values.map(_.flatMap(Sample(_, shrinks)))
         }
+
       }
     }
 

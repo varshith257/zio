@@ -104,8 +104,8 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        val values  = provideRandomEnvironment(f(sample.value)).sample
-        val shrinks = provideRandomEnvironment(Gen(sample.shrink).flatMap(f)).sample
+        val values  = f(sample.value).sample
+        val shrinks = Gen(sample.shrink).flatMap(f).sample
         values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
@@ -132,6 +132,17 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       ZStream.fromZIO(Random.nextInt).flatMap { _ =>
         gen.sample // Ensure each part of the generator has a fresh random state
+      }
+    }
+
+  def randomFirst[R <: R, A](randomGen: Gen[R, A], detGen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      // Generate random values first
+      randomGen.sample.flatMap { randomSample =>
+        // Now combine with deterministic values
+        detGen.sample.map { detSample =>
+          Sample(randomSample.value, detSample.shrink)
+        }
       }
     }
 

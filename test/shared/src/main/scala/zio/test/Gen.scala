@@ -928,11 +928,13 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
 
   final case class CombinedGen[R, A, B](gen1: Gen[R, A], gen2: Gen[R, B]) {
 
-    // Combines two generators (random or deterministic) in any order, evaluated lazily
-    def runWithSeparateStates(implicit trace: zio.Trace): ZIO[R, Nothing, (A, B)] =
-      for {
-        value1 <- gen1.sample
-        value2 <- gen2.sample
-      } yield (value1, value2)
+    // Combine two generators (random or deterministic) and produce a Gen[(A, B)]
+    def toGen(implicit trace: zio.Trace): Gen[R, (A, B)] =
+      Gen {
+        for {
+          sample1 <- gen1.sample
+          sample2 <- gen2.sample
+        } yield Sample((sample1.value, sample2.value))
+      }
   }
 }

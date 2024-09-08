@@ -726,18 +726,18 @@ object GenSpec extends ZIOBaseSpec {
     test("fromIterable before uuid") {
       check(
         for {
-          _  <- Gen.fromIterable(List(1, 2, 3))
-          id <- Gen.uuid
-        } yield id
+          combined <- Gen.CombinedGen(Gen.fromIterable(List(1, 2, 3)), Gen.uuid).runWithSeparateStates
+        } yield combined._2 // Extract the UUID
       ) { id =>
         ZIO.logInfo(s"[fromIterable before uuid] Generated UUID: $id") *> assertCompletes
       }
     },
     test("uuid before fromIterable") {
-      check(for {
-        id <- Gen.uuid
-        _  <- Gen.fromIterable(List(1, 2, 3))
-      } yield id) { id =>
+      check(
+        for {
+          combined <- Gen.CombinedGen(Gen.uuid, Gen.fromIterable(List(1, 2, 3))).runWithSeparateStates
+        } yield combined._1 // Extract the UUID
+      ) { id =>
         ZIO.logInfo(s"[uuid before fromIterable] Generated UUID: $id") *> assertCompletes
       }
     },

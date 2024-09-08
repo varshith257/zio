@@ -864,7 +864,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
 
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    withFreshRandom(Gen.fromZIO(Random.nextUUID)) // Ensure fresh random state for UUID
+    Gen.fromZIO(Random.nextUUID) // Ensure fresh random state for UUID
 
   /**
    * A sized generator of vectors.
@@ -925,4 +925,14 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
 
   private val defaultShrinker: Any => ZStream[Any, Nothing, Nothing] =
     _ => ZStream.empty(Trace.empty)
+
+  final case class CombinedGen[R, A, B](gen1: Gen[R, A], gen2: Gen[R, B]) {
+
+    // Combines two generators (random or deterministic) in any order, evaluated lazily
+    def runWithSeparateStates(implicit trace: zio.Trace): ZIO[R, Nothing, (A, B)] =
+      for {
+        value1 <- gen1.sample.runHead.map(_.get.value)
+        value2 <- gen2.sample.runHead.map(_.get.value)
+      } yield (value1, value2)
+  }
 }

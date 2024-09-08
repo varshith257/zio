@@ -934,7 +934,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
         for {
           sample1 <- gen1.sample
           sample2 <- gen2.sample
-        } yield Sample((sample1.value, sample2.value))
+        } yield Sample((sample1.value, sample2.value), ZStream.empty) // No shrinking
       }
   }
 }

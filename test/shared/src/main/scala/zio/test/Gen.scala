@@ -923,18 +923,21 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     else if (n > max) max
     else n
 
-  private val defaultShrinker: Any => ZStream[Any, Nothing, Nothing] =
-    _ => ZStream.empty(Trace.empty)
-
   final case class CombinedGen[R, A, B](gen1: Gen[R, A], gen2: Gen[R, B]) {
 
-    // Combine two generators (random or deterministic) and produce a Gen[(A, B)]
+    // Ensure independent random seeds for each generator
     def toGen(implicit trace: zio.Trace): Gen[R, (A, B)] =
       Gen {
         for {
-          sample1 <- gen1.sample
-          sample2 <- gen2.sample
-        } yield Sample((sample1.value, sample2.value), ZStream.empty) // No shrinking
+          // Capture random seed for isolation
+          seed1 <- ZStream.fromZIO(Random.nextLong)
+          seed2 <- ZStream.fromZIO(Random.nextLong)
+
+          // Isolate each generator with its own random seed
+          sample1 <- ZStream.fromZIO(Random.withSeed(seed1)(gen1.sample.runHead.map(_.get.value)))
+          sample2 <- ZStream.fromZIO(Random.withSeed(seed2)(gen2.sample.runHead.map(_.get.value)))
+
+        } yield Sample((sample1, sample2), ZStream.empty)
       }
   }
 }

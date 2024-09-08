@@ -931,8 +931,8 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     // Combines two generators (random or deterministic) in any order, evaluated lazily
     def runWithSeparateStates(implicit trace: zio.Trace): ZIO[R, Nothing, (A, B)] =
       for {
-        value1 <- gen1.sample.runHead.map(_.get.value)
-        value2 <- gen2.sample.runHead.map(_.get.value)
+        value1 <- gen1.sample
+        value2 <- gen2.sample
       } yield (value1, value2)
   }
 }

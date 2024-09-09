@@ -116,12 +116,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
       }
     }
 
-def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
-  Gen {
-    ZStream.unwrap {
-      Random.setSeed(seed.state) *> ZIO.succeed(self.sample) // Inject the seed for future random ops
+  def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      ZStream.unwrap {
+        Random.setSeed(seed.state) *> ZIO.succeed(self.sample) // Inject the seed for future random ops
+      }
     }
- 
+
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 

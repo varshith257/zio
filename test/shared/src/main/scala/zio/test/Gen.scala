@@ -907,7 +907,13 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     ZIO.foldLeft(1 to count)(List.empty[A]) { (acc, _) =>
       for {
         nextSeed <- Random.nextInt.map(Seed(_)) // Auto-advance seed
-        value <- gen.withSeed(nextSeed).sample.runHead.map(_.map(_.value)).someOrFailException
+        value <- gen
+                   .withSeed(nextSeed)
+                   .sample
+                   .runHead
+                   .some
+                   .map(_.value)
+                   .orElseFail(new NoSuchElementException("No value generated")) // Handle None case
       } yield acc :+ value
     }
 

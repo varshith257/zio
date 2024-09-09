@@ -17,7 +17,7 @@
 package zio.test
 
 import zio.Random._
-import zio.Random.Seed
+import zio.Seed
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import zio.stream.{Stream, ZStream}
 import zio.{Chunk, NonEmptyChunk, Random, Trace, UIO, URIO, ZIO, Zippable}
@@ -456,12 +456,17 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     as: Iterable[A],
     shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
   )(implicit trace: Trace): Gen[R, A] =
-    Gen {
-      ZStream.fromZIO {
-        for {
-          seed <- ZIO.service[Seed]              // Fetch the current seed
-          idx = (seed.seedValue % as.size).toInt // Use seed to determine the index
-        } yield Sample.noShrink(as.toList(idx))  // Return element at random index
+    if (as.isEmpty) Gen.empty // Handle empty case
+    else {
+      Gen {
+        ZStream.fromZIO {
+          for {
+            seed <- ZIO.service[Seed]              // Fetch the current seed
+            idx = (seed.seedValue % as.size).toInt // Deterministically select an index
+          } yield Sample.unfold(
+            as.toList.applyOrElse(idx, (_: Int) => as.head) // Safe index access
+          )(a => (a, shrinker(a)))                          // Apply shrinker
+        }
       }
     }
 

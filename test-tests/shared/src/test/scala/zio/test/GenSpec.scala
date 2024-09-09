@@ -724,16 +724,18 @@ object GenSpec extends ZIOBaseSpec {
       )
     },
     test("ScaalaCheck Approach") {
-      val seed   = 12345L
-      val uuids1 = generateUUIDs(seed, 5)
-      val uuids2 = generateUUIDs(seed, 5)
+      implicit val trace: zio.Trace = zio.Trace.newTrace
+      val seed                      = 12345L
+      val uuids1                    = Gen.generateUUIDs(seed, 5)
+      val uuids2                    = Gen.generateUUIDs(seed, 5)
 
       assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
     },
     test("ScaalaCheck Approach Debug") {
+      implicit val trace: zio.Trace = zio.Trace.newTrace
       val seed   = 12345L
-      val uuids1 = debugGenerateUUIDs(seed, 5)
-      val uuids2 = debugGenerateUUIDs(seed, 5)
+      val uuids1 = Gen.debugGenerateUUIDs(seed, 5)
+      val uuids2 = Gen.debugGenerateUUIDs(seed, 5)
 
       assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
     },
@@ -761,15 +763,15 @@ object GenSpec extends ZIOBaseSpec {
       test("generates unique UUIDs across fibers") {
         for {
           // Generate UUIDs in two separate fibers
-          uuidsFiber1 <- fiberSafeGenerateUUIDs(5).fork
-          uuidsFiber2 <- fiberSafeGenerateUUIDs(5).fork
+          uuidsFiber1 <- Gen.fiberSafeGenerateUUIDs(5).fork
+          uuidsFiber2 <- Gen.fiberSafeGenerateUUIDs(5).fork
           uuids1      <- uuidsFiber1.join
           uuids2      <- uuidsFiber2.join
         } yield assert(uuids1)(not(equalTo(uuids2))) // Ensure UUIDs from different fibers are not equal
       },
       test("generates the correct number of UUIDs") {
         for {
-          uuids <- fiberSafeGenerateUUIDs(10)
+          uuids <- Gen.fiberSafeGenerateUUIDs(10)
         } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
       }
     ),

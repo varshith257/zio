@@ -756,9 +756,11 @@ object GenSpec extends ZIOBaseSpec {
             Gen.fromZIO(Gen.uuid.sample.runHead.someOrFailException.fork) // Fork UUID generation and handle None
           iterableFiber <- Gen.fromZIO(
                              Gen.fromIterable(List(1, 2)).sample.runHead.someOrFailException.fork
-                           )                                // Fork fromIterable and handle None
-          uuid <- Gen.fromZIO(uuidFiber.join.map(_.value))  // Join UUID fiber and extract value
-          _ <- Gen.fromZIO(iterableFiber.join.map(_.value)) // Join fromIterable fiber and extract value
+                           )                                     // Fork fromIterable and handle None
+          uuid <- Gen.fromZIO(uuidFiber.join.map(_.value).orDie) // Join UUID fiber and extract value, handling failure
+          _ <- Gen.fromZIO(
+                 iterableFiber.join.map(_.value).orDie
+               ) // Join fromIterable fiber and extract value, handling failure
         } yield uuid
       ) { id =>
         ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes

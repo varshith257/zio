@@ -8,6 +8,7 @@ import zio.test.{check => Check, checkN => CheckN}
 
 import java.time.{Duration => _, _}
 import scala.math.Numeric.DoubleIsFractional
+import zio.internal.FiberScope
 
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
@@ -748,16 +749,22 @@ object GenSpec extends ZIOBaseSpec {
         ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
       }
     },
-    test("uuid before fromIterable") {
+    test("uuid before fromIterable with independent scopes") {
       check(
         for {
-          seed <- Gen.fromZIO(Random.nextLong) // Generate random seed
-          idFiber <- Gen.uuid.fork             // Generate UUIDs in a separate fiber
-          _ <- Gen.fromIterable(List(1, 2))
-          id <- Gen.fromZIO(idFiber.join) // Join back the fiber to retrieve the UUID
-        } yield id
+          // Generate a UUID in a fully isolated fiber scope
+          uuidFiber <- Gen.fromZIO(ZIO.scoped {
+                         ZIO.fork(Gen.uuid)
+                       })
+          // Independent scope for the fromIterable generator
+          iterableFiber <- Gen.fromZIO(ZIO.scoped {
+                             ZIO.fork(Gen.fromIterable(List(1, 2)).runHead)
+                           })
+          uuid <- Gen.fromZIO(uuidFiber.join)  // Join back the UUID fiber
+          _ <- Gen.fromZIO(iterableFiber.join) // Join back the fromIterable fiber
+        } yield uuid
       ) { id =>
-        ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+        ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes
       }
     },
     suite("fiberSafeGenerateUUIDs Suite")(

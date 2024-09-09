@@ -752,10 +752,10 @@ object GenSpec extends ZIOBaseSpec {
     test("uuid before fromIterable with independent scopes") {
       check(
         for {
-          uuidFiber <- Gen.fromZIO(Gen.uuid.fork)              // Fork UUID generation
-          iterableFiber <- Gen.fromZIO(Gen.fromIterable(List(1, 2)).runHead.fork) // Fork fromIterable
-          uuid <- Gen.fromZIO(uuidFiber.join)                                     // Join UUID fiber
-          _ <- Gen.fromZIO(iterableFiber.join)                                    // Join fromIterable fiber
+          uuidFiber <- Gen.fromZIO(Gen.uuid.sample.runHead.some.fork)                         // Fork UUID generation
+          iterableFiber <- Gen.fromZIO(Gen.fromIterable(List(1, 2)).sample.runHead.some.fork) // Fork fromIterable
+          uuid <- Gen.fromZIO(uuidFiber.join)                                                 // Join UUID fiber
+          _ <- Gen.fromZIO(iterableFiber.join)                                                // Join fromIterable fiber
         } yield uuid
       ) { id =>
         ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes

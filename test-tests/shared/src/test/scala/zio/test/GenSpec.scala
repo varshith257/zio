@@ -723,6 +723,20 @@ object GenSpec extends ZIOBaseSpec {
         )
       )
     },
+    test("ScaalaCheck Approach") {
+      val seed   = 12345L
+      val uuids1 = generateUUIDs(seed, 5)
+      val uuids2 = generateUUIDs(seed, 5)
+
+      assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
+    },
+    test("ScaalaCheck Approach Debug") {
+      val seed   = 12345L
+      val uuids1 = debugGenerateUUIDs(seed, 5)
+      val uuids2 = debugGenerateUUIDs(seed, 5)
+
+      assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
+    },
     test("fromIterable before uuid") {
       check(
         for {

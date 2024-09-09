@@ -881,6 +881,26 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(nextUUID)
 
+  // Ensure isolated, seed-based deterministic UUID generation
+  def generateUUIDs(seed: Long, count: Int): UIO[List[UUID]] = {
+    val uuidGen = Gen.uuid.withSeed(Seed(seed)) // Seed the UUID generator
+    generateWithAdvancingSeed(seed, uuidGen, count)
+  }
+
+  // Generates UUIDs while advancing the seed in isolation
+  def generateWithAdvancingSeed[R, A](seed: Long, gen: Gen[R, A], steps: Int): URIO[R, List[A]] =
+    ZIO.foldLeft(1 to steps)(List.empty[A]) { (acc, step) =>
+      Random.setSeed(seed + step) *> gen.sample.runHead.map {
+        case Some(sample) => acc :+ sample.value
+        case None         => acc
+      }
+    }
+
+  def debugGenerateUUIDs(seed: Long, count: Int): UIO[List[UUID]] = {
+    val uuidGen = Gen.uuid.withSeed(Seed(seed))
+    generateWithAdvancingSeed(seed, uuidGen, count).tap(uuids => ZIO.debug(uuids))
+  }
+
   /**
    * A sized generator of vectors.
    */

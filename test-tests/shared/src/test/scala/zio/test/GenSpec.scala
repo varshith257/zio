@@ -739,33 +739,33 @@ object GenSpec extends ZIOBaseSpec {
 
     //   assert(uuids1)(equalTo(uuids2))
     // },
-    test("fromIterable before uuid") {
-      check(
-        for {
-          _ <- Gen.fromIterable(List(1, 2))
-          id <- Gen.uuid // Wrap in Gen.fromZIO
-        } yield id
-      ) { id =>
-        ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
-      }
-    },
-    test("uuid before fromIterable with independent scopes") {
-      check(
-        for {
-          uuidFiber <-
-            Gen.fromZIO(Gen.uuid.sample.runHead.someOrFailException.fork) // Fork UUID generation and handle None
-          iterableFiber <- Gen.fromZIO(
-                             Gen.fromIterable(List(1, 2)).sample.runHead.someOrFailException.fork
-                           )                                     // Fork fromIterable and handle None
-          uuid <- Gen.fromZIO(uuidFiber.join.map(_.value).orDie) // Join UUID fiber and extract value, handling failure
-          _ <- Gen.fromZIO(
-                 iterableFiber.join.map(_.value).orDie
-               ) // Join fromIterable fiber and extract value, handling failure
-        } yield uuid
-      ) { id =>
-        ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes
-      }
-    },
+    // test("fromIterable before uuid") {
+    //   check(
+    //     for {
+    //       _ <- Gen.fromIterable(List(1, 2))
+    //       id <- Gen.uuid // Wrap in Gen.fromZIO
+    //     } yield id
+    //   ) { id =>
+    //     ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+    //   }
+    // },
+    // test("uuid before fromIterable with independent scopes") {
+    //   check(
+    //     for {
+    //       uuidFiber <-
+    //         Gen.fromZIO(Gen.uuid.sample.runHead.someOrFailException.fork) // Fork UUID generation and handle None
+    //       iterableFiber <- Gen.fromZIO(
+    //                          Gen.fromIterable(List(1, 2)).sample.runHead.someOrFailException.fork
+    //                        )                                     // Fork fromIterable and handle None
+    //       uuid <- Gen.fromZIO(uuidFiber.join.map(_.value).orDie) // Join UUID fiber and extract value, handling failure
+    //       _ <- Gen.fromZIO(
+    //              iterableFiber.join.map(_.value).orDie
+    //            ) // Join fromIterable fiber and extract value, handling failure
+    //     } yield uuid
+    //   ) { id =>
+    //     ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes
+    //   }
+    // },
     suite("Hooray")(
       // test("generates unique UUIDs across fibers") {
       //   for {

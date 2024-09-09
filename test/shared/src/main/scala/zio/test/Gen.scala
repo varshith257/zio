@@ -17,7 +17,6 @@
 package zio.test
 
 import zio.Random._
-import zio.Seed
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import zio.stream.{Stream, ZStream}
 import zio.{Chunk, NonEmptyChunk, Random, Trace, UIO, URIO, ZIO, Zippable}
@@ -101,39 +100,31 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     filter(a => !f(a))
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
-  // Use seed-based randomness
-// Revised withSeed without using identity
-  def withSeed[R1 <: R, B](seed: Seed)(f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
-    Gen {
-      self.sample.flatMap { sample =>
-        // Pass the seed explicitly to each generator step
-        val values  = f(sample.value).withSeed(seed.next)(f).sample
-        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample
-        values.map(_.flatMap(Sample(_, shrinks)))
-      }
-    }
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        ZStream.fromZIO {
-          for {
-            seed <- ZIO.service[Seed] // Fetch the current seed
-          } yield {
-            // Use withSeed to pass the next seed
-            val values  = f(sample.value).withSeed(seed.next)(f).sample
-            val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample
-            values.map(_.flatMap(Sample(_, shrinks)))
-          }
-        }.flatten // Flatten the stream after mapping
+        val (nextSeed, nextValue) = sample.seed.next
+        val values                = f(sample.value).withSeed(nextSeed).sample
+        val shrinks               = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample
+        values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
 
+  def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      self.sample.map(sample => sample.copy(seed = seed))
+    }
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen(sample.map(_.map(f)))
+    Gen {
+      sample.map { sample =>
+        val (nextSeed, mappedValue) = sample.seed.next
+        Sample(f(sample.value), Gen(sample.shrink).withSeed(nextSeed).sample)
+      }
+    }
 
   /**
    * Maps an effectual function over a generator.
@@ -462,19 +453,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     as: Iterable[A],
     shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
   )(implicit trace: Trace): Gen[R, A] =
-    if (as.isEmpty) Gen.empty // Handle empty case
-    else {
-      Gen {
-        ZStream.fromZIO {
-          for {
-            seed <- ZIO.service[Seed]              // Fetch the current seed
-            idx = (seed.seedValue % as.size).toInt // Deterministically select an index
-          } yield Sample.unfold(
-            as.toList.applyOrElse(idx, (_: Int) => as.head) // Safe index access
-          )(a => (a, shrinker(a)))                          // Apply shrinker
-        }
-      }
-    }
+    Gen(ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
 
   /**
    * Constructs a generator from a function that uses randomness. The returned
@@ -953,4 +932,14 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
 
   private val defaultShrinker: Any => ZStream[Any, Nothing, Nothing] =
     _ => ZStream.empty(Trace.empty)
+}
+
+final case class Seed(state: Long) {
+  def next: (Seed, Int) = {
+    val newState = (state * 6364136223846793005L + 1L) & 0xffffffffffffL
+    val nextInt  = (newState >>> 16).toInt
+    (Seed(newState), nextInt)
+  }
+
+  def advance: Seed = next._1
 }

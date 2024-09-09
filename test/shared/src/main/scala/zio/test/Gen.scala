@@ -17,6 +17,7 @@
 package zio.test
 
 import zio.Random._
+import zio.Random.Seed
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import zio.stream.{Stream, ZStream}
 import zio.{Chunk, NonEmptyChunk, Random, Trace, UIO, URIO, ZIO, Zippable}
@@ -101,7 +102,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
   // Use seed-based randomness
-  def withSeed[R1 <: R, B](seed: Seed)(f: A => Gen[R1, B]): Gen[R1, B] =
+  def withSeed[R1 <: R, B](seed: Seed)(f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
         // Pass the seed explicitly to each generator step
@@ -456,13 +457,13 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
   )(implicit trace: Trace): Gen[R, A] =
     Gen {
-      ZStream.fromEffect {
+      ZStream.fromZIO {
         for {
           seed <- ZIO.service[Seed]              // Fetch the current seed
           idx = (seed.seedValue % as.size).toInt // Use seed to determine the index
         } yield Sample.noShrink(as.toList(idx))  // Return element at random index
       }
-    } en (ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
+    }
 
   /**
    * Constructs a generator from a function that uses randomness. The returned

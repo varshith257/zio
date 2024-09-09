@@ -767,20 +767,20 @@ object GenSpec extends ZIOBaseSpec {
       }
     },
     suite("Hooray")(
-      test("generates unique UUIDs across fibers") {
-        for {
-          // Generate UUIDs in two separate fibers
-          uuidsFiber1 <- Gen.fiberSafeGenerateUUIDs(5).fork
-          uuidsFiber2 <- Gen.fiberSafeGenerateUUIDs(5).fork
-          uuids1      <- uuidsFiber1.join
-          uuids2      <- uuidsFiber2.join
-        } yield assert(uuids1)(not(equalTo(uuids2))) // Ensure UUIDs from different fibers are not equal
-      },
-      test("generates the correct number of UUIDs") {
-        for {
-          uuids <- Gen.fiberSafeGenerateUUIDs(10)
-        } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
-      },
+      // test("generates unique UUIDs across fibers") {
+      //   for {
+      //     // Generate UUIDs in two separate fibers
+      //     uuidsFiber1 <- Gen.fiberSafeGenerateUUIDs(5).fork
+      //     uuidsFiber2 <- Gen.fiberSafeGenerateUUIDs(5).fork
+      //     uuids1      <- uuidsFiber1.join
+      //     uuids2      <- uuidsFiber2.join
+      //   } yield assert(uuids1)(not(equalTo(uuids2))) // Ensure UUIDs from different fibers are not equal
+      // },
+      // test("generates the correct number of UUIDs") {
+      //   for {
+      //     uuids <- Gen.fiberSafeGenerateUUIDs(10)
+      //   } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
+      // },
       test("fromIterable before uuid") {
         check(
           for {

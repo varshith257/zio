@@ -105,12 +105,12 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       self.sample.flatMap { sample =>
         ZStream.unwrap {
+          // Advance seed by using a new Random value or nextSeed
           for {
-            // Obtain next seed or random value from ZIO Random
-            nextSeed <- nextInt.map(Seed(_))                // Use Random to get a new seed or value
-            values <- f(sample.value).sample                // Use the new seed
-            shrinks <- Gen(sample.shrink).flatMap(f).sample // Continue with shrinking logic
-          } yield values.map(_.flatMap(Sample(_, shrinks))) // Map and flatten
+            nextSeed <- Random.nextInt.map(Seed(_)) // Generate a new seed
+            nextSample   = f(sample.value).withSeed(nextSeed).sample
+            shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample
+          } yield nextSample.map(_.flatMap(Sample(_, shrinkStream)))
         }
       }
     }
@@ -124,9 +124,8 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen {
       sample.map { sample =>
-        // Use ZIO Random for next seed or value, avoiding the sample.seed directly
-        val nextSeed = Random.nextInt.map(Seed(_)) // Generate a new seed
-        Sample(f(sample.value), Gen(sample.shrink).sample) // Apply the function
+        val nextSample = Random.nextInt.map(Seed(_)) // Generate a new random seed
+        Sample(f(sample.value), Gen(sample.shrink).sample) // Apply the mapping and generate shrink values
       }
     }
 

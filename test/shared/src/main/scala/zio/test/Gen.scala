@@ -116,14 +116,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   //     }
   //   }
 
-  def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
-    // Set the seed using Random.withSeed, which modifies the environment for future random operations
-    Gen {
-      ZStream.unwrap {
-        Random.setSeed(seed.state) *> ZIO.succeed(self.sample) // Modify the environment with the seeded random state
-      }
-    }
-
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
@@ -211,9 +203,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def zipWith[R1 <: R, B, C](that: Gen[R1, B])(f: (A, B) => C)(implicit trace: Trace): Gen[R1, C] =
     self.flatMap(a => that.map(b => f(a, b)))
 
-  // Method that forks and joins automatically for generators requiring independent execution
+// Method that forks and joins automatically for generators requiring independent execution
   private def forked(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(sample.runHead.someOrFailException.map(_.value).fork.flatMap(_.join.map(_.value)))
+    Gen.fromZIO(
+      sample.runHead.someOrFailException.fork.flatMap { fiber =>
+        fiber.join.map(_.value)
+      }
+    )
 
   /**
    * Automatically ensures independent execution for generators involving

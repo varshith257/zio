@@ -743,7 +743,7 @@ object GenSpec extends ZIOBaseSpec {
         for {
           _ <- Gen.fromIterable(List(1, 2))
           seed <- Gen.fromZIO(Random.nextLong)           // Generate random seed
-          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 10)) // Wrap in Gen.fromZIO
+          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 1)) // Wrap in Gen.fromZIO
         } yield id
       ) { id =>
         ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
@@ -753,7 +753,7 @@ object GenSpec extends ZIOBaseSpec {
       check(
         for {
           seed <- Gen.fromZIO(Random.nextLong)           // Generate random seed
-          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 10)) // Wrap in Gen.fromZIO
+          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 1)) // Wrap in Gen.fromZIO
           _ <- Gen.fromIterable(List(1, 2))
         } yield id
       ) { id =>

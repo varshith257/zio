@@ -650,5 +650,6 @@ final case class Seed(seedValue: Long) {
 }
 
 object Seed {
-  def initial: UIO[Seed] = Clock.currentTime(TimeUnit.MILLISECONDS).map(Seed(_))
+  def initial(implicit trace: Trace): UIO[Seed] =
+    Clock.currentTime(TimeUnit.MILLISECONDS).map(Seed(_))
 }

@@ -911,9 +911,9 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
                    .withSeed(nextSeed)
                    .sample
                    .runHead
-                   .map(_.map(_.value))
-                   .getOrElse(throw new NoSuchElementException("No value generated")) // Handle None case
-      } yield acc :+ value
+                   .some
+                   .orElseFail(new NoSuchElementException("No value generated")) // Handle None case
+      } yield acc :+ value.value
     }
 
   // Generates UUIDs while advancing the seed in isolation

@@ -104,25 +104,29 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        val (nextSeed, nextValue) = sample.seed.next
-        val values                = f(sample.value).withSeed(nextSeed).sample
-        val shrinks               = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample
-        values.map(_.flatMap(Sample(_, shrinks)))
+        ZStream.unwrap {
+          for {
+            // Obtain next seed or random value from ZIO Random
+            nextSeed <- nextInt.map(Seed(_))                // Use Random to get a new seed or value
+            values <- f(sample.value).sample                // Use the new seed
+            shrinks <- Gen(sample.shrink).flatMap(f).sample // Continue with shrinking logic
+          } yield values.map(_.flatMap(Sample(_, shrinks))) // Map and flatten
+        }
       }
     }
-
-  def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
-    Gen {
-      self.sample.map(sample => sample.copy(seed = seed))
-    }
+  // def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
+  //   Gen {
+  //     self.sample.map(sample => sample.copy(seed = seed))
+  //   }
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen {
       sample.map { sample =>
-        val (nextSeed, mappedValue) = sample.seed.next
-        Sample(f(sample.value), Gen(sample.shrink).withSeed(nextSeed).sample)
+        // Use ZIO Random for next seed or value, avoiding the sample.seed directly
+        val nextSeed = Random.nextInt.map(Seed(_)) // Generate a new seed
+        Sample(f(sample.value), Gen(sample.shrink).sample) // Apply the function
       }
     }
 

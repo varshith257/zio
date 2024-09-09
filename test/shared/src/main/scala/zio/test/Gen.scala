@@ -101,20 +101,20 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
 
-  def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
-    Gen {
-      self.sample.flatMap { sample =>
-        ZStream.unwrap {
-          for {
-            nextSeed <- Random.nextInt.map(Seed(_))                                // Get new seed for randomness
-            nextSample = f(sample.value).withSeed(nextSeed).sample                 // Get next sample with seed
-            shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample // Shrink the sample
-          } yield nextSample.map { sampleB =>
-            sampleB.flatMap(Sample(_, shrinkStream)) // Flatten values and shrink them
-          }
-        }
-      }
-    }
+  // def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
+  //   Gen {
+  //     self.sample.flatMap { sample =>
+  //       ZStream.unwrap {
+  //         for {
+  //           nextSeed <- Random.nextInt.map(Seed(_))                                // Get new seed for randomness
+  //           nextSample = f(sample.value).withSeed(nextSeed).sample                 // Get next sample with seed
+  //           shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample // Shrink the sample
+  //         } yield nextSample.map { sampleB =>
+  //           sampleB.flatMap(Sample(_, shrinkStream)) // Flatten values and shrink them
+  //         }
+  //       }
+  //     }
+  //   }
 
   def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
     // Set the seed using Random.withSeed, which modifies the environment for future random operations
@@ -124,15 +124,30 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
       }
     }
 
+  def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
+    Gen {
+      self.sample.flatMap { sample =>
+        val values  = f(sample.value).sample
+        val shrinks = Gen(sample.shrink).flatMap(f).sample
+        values.map(_.flatMap(Sample(_, shrinks)))
+      }
+    }
+
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-    Gen {
-      sample.map { sample =>
-        Sample(f(sample.value), Gen(sample.shrink).sample.asInstanceOf[ZStream[R, Nothing, Sample[R, B]]])
-      }
-    }
+    Gen(sample.map(_.map(f)))
+
+  // def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
+  //   flatMap(ev)
+
+  // def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
+  //   Gen {
+  //     sample.map { sample =>
+  //       Sample(f(sample.value), Gen(sample.shrink).sample.asInstanceOf[ZStream[R, Nothing, Sample[R, B]]])
+  //     }
+  //   }
 
   /**
    * Maps an effectual function over a generator.

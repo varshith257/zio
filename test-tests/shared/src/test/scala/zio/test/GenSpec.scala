@@ -11,6 +11,7 @@ import scala.math.Numeric.DoubleIsFractional
 
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
+  val seed                                                    = 12345L
 
   def spec = suite("GenSpec")(
     suite("integration tests")(
@@ -724,16 +725,16 @@ object GenSpec extends ZIOBaseSpec {
       )
     },
     test("ScaalaCheck Approach") {
-      val seed                      = 12345L
-      val uuids1                    = Gen.generateUUIDs(seed, 5)
-      val uuids2                    = Gen.generateUUIDs(seed, 5)
+      val seed   = 12345L
+      val uuids1 = Gen.generateUUIDs(seed, 5)
+      val uuids2 = Gen.generateUUIDs(seed, 5)
 
       assert(uuids1)(equalTo(uuids2)) // UUIDs generated with the same seed should match
     },
     test("ScaalaCheck Approach Debug") {
-      val seed                      = 12345L
-      val uuids1                    = Gen.debugGenerateUUIDs(seed, 5)
-      val uuids2                    = Gen.debugGenerateUUIDs(seed, 5)
+      val seed   = 12345L
+      val uuids1 = Gen.debugGenerateUUIDs(seed, 5)
+      val uuids2 = Gen.debugGenerateUUIDs(seed, 5)
 
       assert(uuids1)(equalTo(uuids2))
     },
@@ -741,7 +742,7 @@ object GenSpec extends ZIOBaseSpec {
       check(
         for {
           _  <- Gen.fromIterable(List(1, 2))
-          id <- Gen.uuid
+          id <- Gen.generateUUIDs(seed, 10)
         } yield id
       ) { id =>
         ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
@@ -750,7 +751,7 @@ object GenSpec extends ZIOBaseSpec {
     test("uuid before fromIterable") {
       check(
         for {
-          id <- Gen.uuid
+          id <- Gen.generateUUIDs(seed, 10)
           _  <- Gen.fromIterable(List(1, 2))
         } yield id
       ) { id =>

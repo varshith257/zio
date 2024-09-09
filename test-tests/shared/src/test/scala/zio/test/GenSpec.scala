@@ -757,6 +757,22 @@ object GenSpec extends ZIOBaseSpec {
         ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
       }
     },
+    suite("fiberSafeGenerateUUIDs Suite")(
+      test("generates unique UUIDs across fibers") {
+        for {
+          // Generate UUIDs in two separate fibers
+          uuidsFiber1 <- fiberSafeGenerateUUIDs(5).fork
+          uuidsFiber2 <- fiberSafeGenerateUUIDs(5).fork
+          uuids1      <- uuidsFiber1.join
+          uuids2      <- uuidsFiber2.join
+        } yield assert(uuids1)(not(equalTo(uuids2))) // Ensure UUIDs from different fibers are not equal
+      },
+      test("generates the correct number of UUIDs") {
+        for {
+          uuids <- fiberSafeGenerateUUIDs(10)
+        } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
+      }
+    ),
     test("unfoldGen") {
       sealed trait Command
       case object Pop                   extends Command

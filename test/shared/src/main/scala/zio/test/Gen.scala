@@ -881,25 +881,29 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(nextUUID)
 
-  // Ensure isolated, seed-based deterministic UUID generation
-  def generateUUIDs(seed: Long, count: Int): UIO[List[UUID]] = {
-    val uuidGen = Gen.uuid.withSeed(Seed(seed)) // Seed the UUID generator
-    generateWithAdvancingSeed(seed, uuidGen, count)
-  }
-
-  // Generates UUIDs while advancing the seed in isolation
-  def generateWithAdvancingSeed[R, A](seed: Long, gen: Gen[R, A], steps: Int): URIO[R, List[A]] =
+  def generateWithAdvancingSeed[R, A](seed: Long, gen: Gen[R, A], steps: Int)(implicit trace: Trace): URIO[R, List[A]] =
     ZIO.foldLeft(1 to steps)(List.empty[A]) { (acc, step) =>
       Random.setSeed(seed + step) *> gen.sample.runHead.map {
         case Some(sample) => acc :+ sample.value
         case None         => acc
       }
     }
+  // Generates UUIDs while advancing the seed in isolation
+  def generateUUIDs(seed: Long, count: Int)(implicit trace: Trace): UIO[List[UUID]] = {
+    val uuidGen = Gen.uuid.withSeed(Seed(seed))
+    generateWithAdvancingSeed(seed, uuidGen, count)
+  }
 
   def debugGenerateUUIDs(seed: Long, count: Int): UIO[List[UUID]] = {
     val uuidGen = Gen.uuid.withSeed(Seed(seed))
     generateWithAdvancingSeed(seed, uuidGen, count).tap(uuids => ZIO.debug(uuids))
   }
+
+  def fiberSafeGenerateUUIDs(count: Int)(implicit trace: Trace): UIO[List[UUID]] =
+    ZIO.fiberId.flatMap { fiberId =>
+      val seed = fiberId.id.toLong
+      generateUUIDs(seed, count)
+    }
 
   /**
    * A sized generator of vectors.

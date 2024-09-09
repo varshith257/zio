@@ -741,8 +741,8 @@ object GenSpec extends ZIOBaseSpec {
     test("fromIterable before uuid") {
       check(
         for {
-          _  <- Gen.fromIterable(List(1, 2))
-          id <- Gen.generateUUIDs(seed, 10)
+          _ <- Gen.fromIterable(List(1, 2))
+          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 10)) // Wrap the ZIO effect in a Gen using fromZIO
         } yield id
       ) { id =>
         ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
@@ -751,8 +751,8 @@ object GenSpec extends ZIOBaseSpec {
     test("uuid before fromIterable") {
       check(
         for {
-          id <- Gen.generateUUIDs(seed, 10)
-          _  <- Gen.fromIterable(List(1, 2))
+          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 10)) // Wrap the ZIO effect in a Gen using fromZIO
+          _ <- Gen.fromIterable(List(1, 2))
         } yield id
       ) { id =>
         ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
@@ -772,6 +772,26 @@ object GenSpec extends ZIOBaseSpec {
         for {
           uuids <- Gen.fiberSafeGenerateUUIDs(10)
         } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
+      },
+      test("fromIterable before fiberSafeGenerateUUIDs") {
+        check(
+          for {
+            _ <- Gen.fromIterable(List(1, 2))
+            id <- Gen.fromZIO(Gen.fiberSafeGenerateUUIDs(5)) // Wrap ZIO in a Gen using fromZIO
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"fromIterable before fiberSafeGenerateUUIDs: $id") *> assertCompletes
+        }
+      },
+      test("fiberSafeGenerateUUIDs before fromIterable") {
+        check(
+          for {
+            id <- Gen.fromZIO(Gen.fiberSafeGenerateUUIDs(5)) // Wrap ZIO in a Gen using fromZIO
+            _ <- Gen.fromIterable(List(1, 2))
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"fiberSafeGenerateUUIDs before fromIterable: $id") *> assertCompletes
+        }
       }
     ),
     test("unfoldGen") {

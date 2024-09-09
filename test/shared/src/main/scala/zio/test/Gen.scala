@@ -900,7 +900,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * not have any shrinking.
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(nextUUID).independent
+    Gen.fromZIO(nextUUID)
 
   // def generateWithAdvancingSeed[R, A](seed: Long, gen: Gen[R, A], steps: Int)(implicit trace: Trace): URIO[R, List[A]] =
   //   ZIO.foldLeft(1 to steps)(List.empty[A]) { (acc, step) =>

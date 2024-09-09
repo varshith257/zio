@@ -786,7 +786,28 @@ object GenSpec extends ZIOBaseSpec {
         ) { id =>
           ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
         }
+      },
+      test("fromIterable before uuid generates distinct UUIDs") {
+        check(
+          for {
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
+            id <- Gen.uuid.independent
+          } yield id
+        ) { ids =>
+          assertTrue(ids.distinct.size == ids.size)
+        }
+      },
+      test("uuid before fromIterable generates distinct UUIDs") {
+        check(
+          for {
+            id <- Gen.uuid.independent
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
+          } yield id
+        ) { ids =>
+          assertTrue(ids.distinct.size == ids.size)
+        }
       }
+
       // test("fromIterable before uuid") {
       //   check(
       //     for {

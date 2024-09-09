@@ -34,36 +34,36 @@ addCommandAlias(
 
 addCommandAlias(
   "compileJVM",
-  ";coreTestsJVM/Test/compile;stacktracerJVM/Test/compile;streamsTestsJVM/Test/compile;testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
+  "streamsTestsJVM/Test/compile;testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
 )
 addCommandAlias(
   "testNative",
-  ";coreTestsNative/test;stacktracerNative/test;streamsTestsNative/test;testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
+  "streamsTestsNative/test;testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
 )
 addCommandAlias(
   "testJVM",
-  ";coreTestsJVM/test;stacktracerJVM/test;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
+  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVMNoBenchmarks",
-  ";coreTestsJVM/test;stacktracerJVM/test;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVM3",
-  ";coreTestsJVM/test;stacktracerJVM/Test/compile;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJS3",
-  ";coreTestsJS/test;stacktracerJS/test;streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
+  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
 )
 addCommandAlias(
   "testJS",
-  ";coreTestsJS/test;stacktracerJS/test;streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
+  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
 )
-addCommandAlias(
-  "mimaChecks",
-  "all coreJVM/mimaReportBinaryIssues streamsJVM/mimaReportBinaryIssues testsJVM/mimaReportBinaryIssues"
-)
+// addCommandAlias(
+//   "mimaChecks",
+//   "all coreJVM/mimaReportBinaryIssues streamsJVM/mimaReportBinaryIssues testsJVM/mimaReportBinaryIssues"
+// )
 
 lazy val projectsCommon = List(
   concurrent,

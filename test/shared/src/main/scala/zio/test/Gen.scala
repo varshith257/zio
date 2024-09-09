@@ -106,8 +106,9 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       self.sample.flatMap { sample =>
         // Pass the seed explicitly to each generator step
-        val values  = f(sample.value).withSeed(seed.next)(f).sample               // Correct application
-        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample // Correct application
+        val values =
+          f(sample.value).withSeed(seed.next)(identity).sample // Correct application: `identity` for type alignment
+        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(identity).sample
         values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
@@ -115,16 +116,18 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        ZStream.fromZIO { // Convert ZIO to ZStream
+        ZStream.fromZIO {
           for {
             seed <- ZIO.service[Seed] // Fetch the current seed
           } yield {
-            val values  = f(sample.value).withSeed(seed.next)(f).sample
-            val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample
+            // Correct usage of `withSeed` by passing identity to preserve the type
+            val values  = f(sample.value).withSeed(seed.next)(identity).sample
+            val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(identity).sample
             values.map(_.flatMap(Sample(_, shrinks)))
           }
         }.flatten // Flatten the stream after mapping
       }
+
     }
 
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =

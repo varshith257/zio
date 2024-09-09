@@ -911,9 +911,8 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
                    .withSeed(nextSeed)
                    .sample
                    .runHead
-                   .some
-                   .map(_.value)
-                   .orElseFail(new NoSuchElementException("No value generated")) // Handle None case
+                   .map(_.map(_.value))
+                   .getOrElse(throw new NoSuchElementException("No value generated")) // Handle None case
       } yield acc :+ value
     }
 

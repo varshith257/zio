@@ -120,7 +120,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     // Set the seed using Random.withSeed, which modifies the environment for future random operations
     Gen {
       ZStream.unwrap {
-        Random.withSeed(seed.state) *> ZIO.succeed(self.sample) // Modify the environment with the seeded random state
+        Random.setSeed(seed.state) *> ZIO.succeed(self.sample) // Modify the environment with the seeded random state
       }
     }
 

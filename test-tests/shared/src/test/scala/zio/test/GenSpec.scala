@@ -12,6 +12,8 @@ import scala.math.Numeric.DoubleIsFractional
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
 
+  val seedLayer: ZLayer[Any, Nothing, Seed] = ZLayer.succeed(Seed(123456789L))
+
   def spec = suite("GenSpec")(
     suite("integration tests")(
       test("with bogus even property") {
@@ -670,7 +672,7 @@ object GenSpec extends ZIOBaseSpec {
       val expected   = List.range(1, 6).flatMap(x => List.range(1, 6).map(y => x + y))
       val exhaustive = Gen.fromIterable(1 until 6)
       val actual     = exhaustive.zipWith(exhaustive)(_ + _)
-      checkFinite(actual)(equalTo(expected))
+      checkFinite(actual)(equalTo(expected)).provideLayer(seedLayer)
     },
     test("size can be modified locally") {
       val getSize = Gen.size.sample.map(_.value).runCollect.map(_.head)
@@ -725,17 +727,23 @@ object GenSpec extends ZIOBaseSpec {
     },
     test("fromIterable before uuid") {
       check(
-        Gen.CombinedGen(Gen.fromIterable(List(1, 2, 3)), Gen.uuid).toGen.map(_._2) // Extract the UUID
+        for {
+          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+          id <- Gen.uuid
+        } yield id
       ) { id =>
-        ZIO.logInfo(s"[fromIterable before uuid] Generated UUID: $id") *> assertCompletes
-      }
+        ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+      }.provideLayer(seedLayer)
     },
     test("uuid before fromIterable") {
       check(
-        Gen.CombinedGen(Gen.uuid, Gen.fromIterable(List(1, 2, 3))).toGen.map(_._1) // Extract the UUID
+        for {
+          id <- Gen.uuid
+          i  <- Gen.fromIterable(List(1, 2, 3, 4))
+        } yield id
       ) { id =>
-        ZIO.logInfo(s"[uuid before fromIterable] Generated UUID: $id") *> assertCompletes
-      }
+        ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+      }.provide(seedLayer)
     },
     test("unfoldGen") {
       sealed trait Command

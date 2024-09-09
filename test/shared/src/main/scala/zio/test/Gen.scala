@@ -894,7 +894,7 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     generateWithAdvancingSeed(seed, uuidGen, count)
   }
 
-  def debugGenerateUUIDs(seed: Long, count: Int): UIO[List[UUID]] = {
+  def debugGenerateUUIDs(seed: Long, count: Int)(implicit trace: Trace): UIO[List[UUID]] = {
     val uuidGen = Gen.uuid.withSeed(Seed(seed))
     generateWithAdvancingSeed(seed, uuidGen, count).tap(uuids => ZIO.debug(uuids))
   }

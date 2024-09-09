@@ -906,13 +906,8 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
   def generateWithAutoSeed[R, A](gen: Gen[R, A], count: Int)(implicit trace: Trace): URIO[R, List[A]] =
     ZIO.foldLeft(1 to count)(List.empty[A]) { (acc, _) =>
       for {
-        nextSeed <- Random.nextInt.map(Seed(_)) // Auto-advance seed
-        value <- gen
-                   .withSeed(nextSeed)
-                   .sample
-                   .runHead
-                   .some
-                   .orElseFail(new NoSuchElementException("No value generated")) // Handle None case
+        nextSeed <- Random.nextInt.map(Seed(_))                            // Auto-advance seed
+        value <- gen.withSeed(nextSeed).sample.runHead.someOrFailException // Convert None to Failure
       } yield acc :+ value.value
     }
 

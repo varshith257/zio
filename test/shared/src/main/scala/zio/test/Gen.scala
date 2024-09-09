@@ -100,13 +100,25 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     filter(a => !f(a))
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
+  // Use seed-based randomness
+  def withSeed[R1 <: R, B](seed: Seed)(f: A => Gen[R1, B]): Gen[R1, B] =
+    Gen {
+      self.sample.flatMap { sample =>
+        // Pass the seed explicitly to each generator step
+        val values  = f(sample.value).withSeed(seed.next).sample // Advance seed here
+        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next).sample
+        values.map(_.flatMap(Sample(_, shrinks)))
+      }
+    }
 
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
-        val values  = f(sample.value).sample
-        val shrinks = Gen(sample.shrink).flatMap(f).sample
-        values.map(_.flatMap(Sample(_, shrinks)))
+        for {
+          seed <- ZIO.service[Seed]                            // Fetch the current seed
+          values <- f(sample.value).withSeed(seed.next).sample // Pass advanced seed
+          shrinks <- Gen(sample.shrink).flatMap(f).withSeed(seed.next).sample
+        } yield values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
 
@@ -443,7 +455,14 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
     as: Iterable[A],
     shrinker: A => ZStream[R, Nothing, A] = defaultShrinker
   )(implicit trace: Trace): Gen[R, A] =
-    Gen(ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
+    Gen {
+      ZStream.fromEffect {
+        for {
+          seed <- ZIO.service[Seed]              // Fetch the current seed
+          idx = (seed.seedValue % as.size).toInt // Use seed to determine the index
+        } yield Sample.noShrink(as.toList(idx))  // Return element at random index
+      }
+    } en (ZStream.fromIterable(as).map(a => Sample.unfold(a)(a => (a, shrinker(a)))))
 
   /**
    * Constructs a generator from a function that uses randomness. The returned
@@ -860,11 +879,8 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    * A generator of universally unique identifiers. The returned generator will
    * not have any shrinking.
    */
-  private def withFreshRandom[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(Random.nextInt).flatMap(_ => gen) // Forces fresh random state every time
-
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
-    Gen.fromZIO(Random.nextUUID) // Ensure fresh random state for UUID
+    Gen.fromZIO(nextUUID)
 
   /**
    * A sized generator of vectors.
@@ -925,22 +941,4 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
 
   private val defaultShrinker: Any => ZStream[Any, Nothing, Nothing] =
     _ => ZStream.empty(Trace.empty)
-
-  final case class CombinedGen[R, A, B](gen1: Gen[R, A], gen2: Gen[R, B]) {
-
-    // Ensure independent random seeds for each generator
-    def toGen(implicit trace: zio.Trace): Gen[R, (A, B)] =
-      Gen {
-        for {
-          // Capture random seed for isolation
-          seed1 <- ZStream.fromZIO(Random.nextLong)
-          seed2 <- ZStream.fromZIO(Random.nextLong)
-
-          // Isolate each generator with its own random seed
-          sample1 <- ZStream.fromZIO(TRandom.withSeed(seed1)(gen1.sample.runHead.map(_.get.value)))
-          sample2 <- ZStream.fromZIO(TRandom.withSeed(seed2)(gen2.sample.runHead.map(_.get.value)))
-
-        } yield Sample((sample1, sample2), ZStream.empty)
-      }
-  }
 }

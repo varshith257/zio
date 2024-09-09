@@ -21,6 +21,10 @@ import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 import java.util.UUID
 import scala.annotation.tailrec
+import zio.Clock
+import zio.{UIO, ZIO}
+import java.util.concurrent.TimeUnit
+import zio.Clock
 
 trait Random extends Serializable { self =>
   def nextBoolean(implicit trace: Trace): UIO[Boolean]
@@ -639,4 +643,12 @@ object Random extends Serializable {
    */
   def shuffle[A](list: => List[A])(implicit trace: Trace): UIO[List[A]] =
     ZIO.randomWith(_.shuffle(list))
+}
+
+final case class Seed(seedValue: Long) {
+  def next: Seed = Seed(seedValue + 1) // Simple seed advancement
+}
+
+object Seed {
+  def initial: UIO[Seed] = Clock.currentTime(TimeUnit.MILLISECONDS).map(Seed(_))
 }

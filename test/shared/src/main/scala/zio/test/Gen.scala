@@ -117,9 +117,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     }
 
   def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
+    // Create a generator that uses the specified seed
     Gen {
       ZStream.unwrap {
-        Random.setSeed(seed.state) *> ZIO.succeed(self.sample) // Inject the seed for future random ops
+        for {
+          random <- ZIO.succeed(Random(seed.state)) // Create a new Random instance with the seed
+          sample <- random.run(self.sample)         // Run the generator using this seeded random instance
+        } yield sample
       }
     }
 

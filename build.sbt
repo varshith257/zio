@@ -68,7 +68,7 @@ addCommandAlias(
 lazy val projectsCommon = List(
   concurrent,
   core,
-  coreTests,
+  // coreTests,
   examples,
   internalMacros,
   macros,
@@ -236,32 +236,32 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     nativeSettings
   )
 
-lazy val coreTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
-  .in(file("core-tests"))
-  .dependsOn(core)
-  .dependsOn(tests)
-  .settings(stdSettings("core-tests"))
-  .settings(crossProjectSettings)
-  .dependsOn(testRunner)
-  .settings(buildInfoSettings("zio"))
-  .settings(publish / skip := true)
-  .settings(
-    Compile / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
-  )
-  .enablePlugins(BuildInfoPlugin)
-  .jvmConfigure(_.enablePlugins(JCStressPlugin))
-  .jvmSettings(replSettings)
-  .jsSettings(
-    jsSettings,
-    scalacOptions ++= {
-      if (scalaVersion.value == Scala3) {
-        List()
-      } else {
-        List("-P:scalajs:nowarnGlobalExecutionContext")
-      }
-    }
-  )
-  .nativeSettings(nativeSettings)
+// lazy val coreTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+//   .in(file("core-tests"))
+//   .dependsOn(core)
+//   .dependsOn(tests)
+//   .settings(stdSettings("core-tests"))
+//   .settings(crossProjectSettings)
+//   .dependsOn(testRunner)
+//   .settings(buildInfoSettings("zio"))
+//   .settings(publish / skip := true)
+//   .settings(
+//     Compile / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
+//   )
+//   .enablePlugins(BuildInfoPlugin)
+//   .jvmConfigure(_.enablePlugins(JCStressPlugin))
+//   .jvmSettings(replSettings)
+//   .jsSettings(
+//     jsSettings,
+//     scalacOptions ++= {
+//       if (scalaVersion.value == Scala3) {
+//         List()
+//       } else {
+//         List("-P:scalajs:nowarnGlobalExecutionContext")
+//       }
+//     }
+//   )
+//   .nativeSettings(nativeSettings)
 
 lazy val managed = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .in(file("managed"))

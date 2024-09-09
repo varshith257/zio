@@ -903,6 +903,14 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
         case None         => acc
       }
     }
+  def generateWithAutoSeed[R, A](gen: Gen[R, A], count: Int)(implicit trace: Trace): URIO[R, List[A]] =
+    ZIO.foldLeft(1 to count)(List.empty[A]) { (acc, _) =>
+      for {
+        nextSeed <- Random.nextInt.map(Seed(_)) // Auto-advance seed
+        value <- gen.withSeed(nextSeed).sample.runHead.map(_.map(_.value)).someOrFailException
+      } yield acc :+ value
+    }
+
   // Generates UUIDs while advancing the seed in isolation
   def generateUUIDs(seed: Long, count: Int)(implicit trace: Trace): UIO[List[UUID]] = {
     val uuidGen = Gen.uuid.withSeed(Seed(seed))

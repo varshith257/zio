@@ -102,13 +102,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
   // Use seed-based randomness
+// Revised withSeed without using identity
   def withSeed[R1 <: R, B](seed: Seed)(f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
         // Pass the seed explicitly to each generator step
-        val values =
-          f(sample.value).withSeed(seed.next)(identity).sample // Correct application: `identity` for type alignment
-        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(identity).sample
+        val values  = f(sample.value).withSeed(seed.next)(f).sample
+        val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample
         values.map(_.flatMap(Sample(_, shrinks)))
       }
     }
@@ -120,14 +120,13 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
           for {
             seed <- ZIO.service[Seed] // Fetch the current seed
           } yield {
-            // Correct usage of `withSeed` by passing identity to preserve the type
-            val values  = f(sample.value).withSeed(seed.next)(identity).sample
-            val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(identity).sample
+            // Use withSeed to pass the next seed
+            val values  = f(sample.value).withSeed(seed.next)(f).sample
+            val shrinks = Gen(sample.shrink).flatMap(f).withSeed(seed.next)(f).sample
             values.map(_.flatMap(Sample(_, shrinks)))
           }
         }.flatten // Flatten the stream after mapping
       }
-
     }
 
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =

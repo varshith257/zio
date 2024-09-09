@@ -781,26 +781,61 @@ object GenSpec extends ZIOBaseSpec {
       //     uuids <- Gen.fiberSafeGenerateUUIDs(10)
       //   } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
       // },
+      // test("fromIterable before uuid") {
+      //   check(
+      //     for {
+      //       _  <- Gen.fromIterable(List(1, 2, 3, 4))
+      //       id <- Gen.uuid
+      //     } yield id
+      //   ) { id =>
+      //     ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+      //   }
+      // },
+      // test("uuid before fromIterable") {
+      //   check(
+      //     for {
+      //       id <- Gen.uuid
+      //       _  <- Gen.fromIterable(List(1, 2, 3, 4))
+      //     } yield id
+      //   ) { id =>
+      //     ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+      //   }
+      // }
       test("fromIterable before uuid") {
         check(
           for {
             _  <- Gen.fromIterable(List(1, 2, 3, 4))
             id <- Gen.uuid
           } yield id
-        ) { id =>
-          ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+        ) { id1 =>
+          check(
+            for {
+              _  <- Gen.fromIterable(List(1, 2, 3, 4))
+              id <- Gen.uuid
+            } yield id
+          ) { id2 =>
+            assertTrue(id1 != id2) // Ensures UUIDs generated in each check are distinct
+          }
         }
       },
       test("uuid before fromIterable") {
         check(
           for {
-            id <- Gen.uuid
-            _  <- Gen.fromIterable(List(1, 2, 3, 4))
-          } yield id
-        ) { id =>
-          ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+            id1 <- Gen.uuid
+            _   <- Gen.fromIterable(List(1, 2, 3, 4))
+          } yield id1
+        ) { id1 =>
+          check(
+            for {
+              id2 <- Gen.uuid
+              _   <- Gen.fromIterable(List(1, 2, 3, 4))
+            } yield id2
+          ) { id2 =>
+            assertTrue(id1 != id2) // Ensures UUIDs generated in each check are distinct
+          }
         }
       }
+
       // test("fromIterable before fiberSafeGenerateUUIDs") {
       //   check(
       //     for {

@@ -105,27 +105,29 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       self.sample.flatMap { sample =>
         ZStream.unwrap {
-          // Advance seed by using a new Random value or nextSeed
           for {
-            nextSeed <- Random.nextInt.map(Seed(_)) // Generate a new seed
-            nextSample   = f(sample.value).withSeed(nextSeed).sample
-            shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample
-          } yield nextSample.map(_.flatMap(Sample(_, shrinkStream)))
+            nextSeed <- Random.nextInt.map(Seed(_))                                // Get new seed for randomness
+            nextSample = f(sample.value).withSeed(nextSeed).sample                 // Get next sample with seed
+            shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample // Shrink the sample
+          } yield nextSample.map { sampleB =>
+            sampleB.flatMap(Sample(_, shrinkStream)) // Flatten values and shrink them
+          }
         }
       }
     }
-  // def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
-  //   Gen {
-  //     self.sample.map(sample => sample.copy(seed = seed))
-  //   }
+
+  def withSeed(seed: Seed)(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      self.sample.map(sample => sample.copy(seed = seed))
+    }
+
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen {
       sample.map { sample =>
-        val nextSample = Random.nextInt.map(Seed(_)) // Generate a new random seed
-        Sample(f(sample.value), Gen(sample.shrink).sample) // Apply the mapping and generate shrink values
+        Sample(f(sample.value), Gen(sample.shrink).sample.asInstanceOf[ZStream[R, Nothing, Sample[R, B]]])
       }
     }
 

@@ -767,40 +767,26 @@ object GenSpec extends ZIOBaseSpec {
     //   }
     // },
     suite("Hooray")(
-      // test("generates unique UUIDs across fibers") {
-      //   for {
-      //     // Generate UUIDs in two separate fibers
-      //     uuidsFiber1 <- Gen.fiberSafeGenerateUUIDs(5).fork
-      //     uuidsFiber2 <- Gen.fiberSafeGenerateUUIDs(5).fork
-      //     uuids1      <- uuidsFiber1.join
-      //     uuids2      <- uuidsFiber2.join
-      //   } yield assert(uuids1)(not(equalTo(uuids2))) // Ensure UUIDs from different fibers are not equal
-      // },
-      // test("generates the correct number of UUIDs") {
-      //   for {
-      //     uuids <- Gen.fiberSafeGenerateUUIDs(10)
-      //   } yield assert(uuids.size)(equalTo(10)) // Ensure it generates the expected number of UUIDs
-      // },
-      // test("fromIterable before uuid") {
-      //   check(
-      //     for {
-      //       _  <- Gen.fromIterable(List(1, 2, 3, 4))
-      //       id <- Gen.uuid
-      //     } yield id
-      //   ) { id =>
-      //     ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
-      //   }
-      // },
-      // test("uuid before fromIterable") {
-      //   check(
-      //     for {
-      //       id <- Gen.uuid
-      //       _  <- Gen.fromIterable(List(1, 2, 3, 4))
-      //     } yield id
-      //   ) { id =>
-      //     ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
-      //   }
-      // }
+      test("LOG fromIterable before uuid") {
+        check(
+          for {
+            _  <- Gen.fromIterable(List(1, 2, 3, 4))
+            id <- Gen.uuid
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+        }
+      },
+      test("LOG uuid before fromIterable") {
+        check(
+          for {
+            id <- Gen.uuid
+            _  <- Gen.fromIterable(List(1, 2, 3, 4))
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+        }
+      },
       test("fromIterable before uuid") {
         check(
           for {
@@ -835,27 +821,6 @@ object GenSpec extends ZIOBaseSpec {
           }
         }
       }
-
-      // test("fromIterable before fiberSafeGenerateUUIDs") {
-      //   check(
-      //     for {
-      //       _ <- Gen.fromIterable(List(1, 2))
-      //       ids <- Gen.generateWithAutoSeed(Gen.uuid, 1) // Use auto-seeded UUID generator, generate 1 UUID
-      //     } yield id
-      //   ) { id =>
-      //     ZIO.logInfo(s"fromIterable before fiberSafeGenerateUUIDs: $id") *> assertCompletes
-      //   }
-      // },
-      // test("fiberSafeGenerateUUIDs before fromIterable") {
-      //   check(
-      //     for {
-      //       id <- Gen.fromZIO(Gen.fiberSafeGenerateUUIDs(5)) // Wrap ZIO in a Gen using fromZIO
-      //       _ <- Gen.fromIterable(List(1, 2))
-      //     } yield id
-      //   ) { id =>
-      //     ZIO.logInfo(s"fiberSafeGenerateUUIDs before fromIterable: $id") *> assertCompletes
-      //   }
-      // }
     ),
     test("unfoldGen") {
       sealed trait Command

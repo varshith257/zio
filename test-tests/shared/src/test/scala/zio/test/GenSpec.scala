@@ -724,20 +724,20 @@ object GenSpec extends ZIOBaseSpec {
       )
     },
     test("ScaalaCheck Approach") {
-      implicit val trace: zio.Trace = zio.Trace.newTrace
+      implicit val _: zio.Trace = zio.Trace.empty
       val seed                      = 12345L
       val uuids1                    = Gen.generateUUIDs(seed, 5)
       val uuids2                    = Gen.generateUUIDs(seed, 5)
 
-      assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
+      assert(uuids1)(equalTo(uuids2)) // UUIDs generated with the same seed should match
     },
     test("ScaalaCheck Approach Debug") {
-      implicit val trace: zio.Trace = zio.Trace.newTrace
-      val seed   = 12345L
-      val uuids1 = Gen.debugGenerateUUIDs(seed, 5)
-      val uuids2 = Gen.debugGenerateUUIDs(seed, 5)
+      implicit val _: zio.Trace = zio.Trace.empty
+      val seed                      = 12345L
+      val uuids1                    = Gen.debugGenerateUUIDs(seed, 5)
+      val uuids2                    = Gen.debugGenerateUUIDs(seed, 5)
 
-      assert(uuids1 == uuids2) // UUIDs generated with the same seed should match
+      assert(uuids1)(equalTo(uuids2))
     },
     test("fromIterable before uuid") {
       check(

@@ -742,8 +742,7 @@ object GenSpec extends ZIOBaseSpec {
       check(
         for {
           _ <- Gen.fromIterable(List(1, 2))
-          seed <- Gen.fromZIO(Random.nextLong)          // Generate random seed
-          id <- Gen.fromZIO(Gen.generateUUIDs(seed, 1)) // Wrap in Gen.fromZIO
+          id <- Gen.uuid // Wrap in Gen.fromZIO
         } yield id
       ) { id =>
         ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
@@ -752,8 +751,8 @@ object GenSpec extends ZIOBaseSpec {
     test("uuid before fromIterable") {
       check(
         for {
-          seed <- Gen.fromZIO(Random.nextLong)                    // Generate random seed
-          idFiber <- Gen.fromZIO(Gen.generateUUIDs(seed, 1).fork) // Generate UUIDs in a separate fiber
+          seed <- Gen.fromZIO(Random.nextLong) // Generate random seed
+          idFiber <- Gen.uuid.fork             // Generate UUIDs in a separate fiber
           _ <- Gen.fromIterable(List(1, 2))
           id <- Gen.fromZIO(idFiber.join) // Join back the fiber to retrieve the UUID
         } yield id

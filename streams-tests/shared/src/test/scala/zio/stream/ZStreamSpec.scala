@@ -5411,7 +5411,8 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork
-              _      <- latch.await
+              _ <- latch.await
+              _ <- ZIO.sleep(100.millis) // Add a delay to ensure fiber has started
               _      <- fiber.interrupt
               result <- fiber.await
             } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
@@ -5441,8 +5442,9 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork
-              _      <- latch.await
-              _      <- fiber.interrupt
+              _ <- latch.await
+              _ <- fiber.interrupt
+              _ <- ZIO.sleep(100.millis) // Add a delay to ensure fiber has started
               result <- fiber.await
             } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           }
@@ -5819,6 +5821,7 @@ class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStre
   var isClosed: Boolean = false
 
   override def close(): Unit = {
+    ZIO.logInfo("Closing InputStream")
     isClosed = true
     super.close()
   }

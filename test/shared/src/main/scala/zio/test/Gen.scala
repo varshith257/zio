@@ -122,8 +122,8 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def forked(implicit trace: Trace): Gen[R, A] =
     Gen.fromZIO(
       sample.runCollect.fork.flatMap { fiber =>
-        fiber.join // Collect all samples from the generator, not just the first one
-      }.map(_.value)     // Map to the values of all collected samples
+        fiber.join.map(_.map(_.value)) // Collect all samples from the generator and map to their values
+      }
     )
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =

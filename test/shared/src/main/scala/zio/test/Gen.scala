@@ -124,9 +124,9 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
       self.sample.flatMap(sample =>
         ZStream.fromZIO {
           for {
-            fiber <- ZIO.succeed(sample).fork                     // Fork the evaluation of the sample
-            joinedSample <- fiber.join                            // Join the fiber to get the original sample
-          } yield Sample(joinedSample.value, joinedSample.shrink) // Return a Sample
+            fiber <- sample.shrink.runCollect.fork                            // Forking the shrinker to ensure all samples are handled
+            shrinkedSamples <- fiber.join                                     // Joining the fiber to collect all shrunk samples
+          } yield Sample(sample.value, ZStream.fromIterable(shrinkedSamples)) // Preserving the value and shrinks
         }
       )
     }

@@ -5429,7 +5429,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _      <- latch.await
               _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted)
+            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           },
           test("fromInputStreamInterruptibleScoped properly interrupts and closes stream") {
             for {
@@ -5825,4 +5825,3 @@ class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStre
 
   def Closed(): Boolean = isClosed
 }
-

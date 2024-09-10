@@ -101,21 +101,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 
   def withFilter(f: A => Boolean)(implicit trace: Trace): Gen[R, A] = filter(f)
 
-  // def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
-  //   Gen {
-  //     self.sample.flatMap { sample =>
-  //       ZStream.unwrap {
-  //         for {
-  //           nextSeed <- Random.nextInt.map(Seed(_))                                // Get new seed for randomness
-  //           nextSample = f(sample.value).withSeed(nextSeed).sample                 // Get next sample with seed
-  //           shrinkStream = Gen(sample.shrink).flatMap(f).withSeed(nextSeed).sample // Shrink the sample
-  //         } yield nextSample.map { sampleB =>
-  //           sampleB.flatMap(Sample(_, shrinkStream)) // Flatten values and shrink them
-  //         }
-  //       }
-  //     }
-  //   }
-
   def flatMap[R1 <: R, B](f: A => Gen[R1, B])(implicit trace: Trace): Gen[R1, B] =
     Gen {
       self.sample.flatMap { sample =>
@@ -128,18 +113,23 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
+  /**
+   * Runs the generator in a separate fiber, ensuring its random state and side
+   * effects are isolated from other generators. Use this to prevent
+   * interference when combining randomness or side-effectful generators in for
+   * comprehensions.
+   */
+  def forked(implicit trace: Trace): Gen[R, A] =
+    Gen {
+      for {
+        fiber <- self.sample.runCollect.fork  // Fork the collection of the entire stream
+        result <- ZStream.fromZIO(fiber.join) // Join the forked fiber, getting all the results
+        a <- ZStream.fromIterable(result)     // Convert the collected results back into a stream
+      } yield a
+    }
+
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))
-
-  // def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
-  //   flatMap(ev)
-
-  // def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
-  //   Gen {
-  //     sample.map { sample =>
-  //       Sample(f(sample.value), Gen(sample.shrink).sample.asInstanceOf[ZStream[R, Nothing, Sample[R, B]]])
-  //     }
-  //   }
 
   /**
    * Maps an effectual function over a generator.
@@ -202,20 +192,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def zipWith[R1 <: R, B, C](that: Gen[R1, B])(f: (A, B) => C)(implicit trace: Trace): Gen[R1, C] =
     self.flatMap(a => that.map(b => f(a, b)))
-
-// Method that forks and joins automatically for generators requiring independent execution
-  private def forked(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(
-      sample.runHead.someOrFailException.fork.flatMap { fiber =>
-        fiber.join.map(_.value).orDie // Ensures that NoSuchElementException is handled
-      }
-    )
-
-  /**
-   * Automatically ensures independent execution for generators involving
-   * randomness
-   */
-  def independent(implicit trace: Trace): Gen[R, A] = forked
 }
 
 object Gen extends GenZIO with FunctionVariants with TimeVariants {
@@ -901,38 +877,6 @@ object Gen extends GenZIO with FunctionVariants with TimeVariants {
    */
   def uuid(implicit trace: Trace): Gen[Any, UUID] =
     Gen.fromZIO(nextUUID)
-
-  // def generateWithAdvancingSeed[R, A](seed: Long, gen: Gen[R, A], steps: Int)(implicit trace: Trace): URIO[R, List[A]] =
-  //   ZIO.foldLeft(1 to steps)(List.empty[A]) { (acc, step) =>
-  //     Random.setSeed(seed + step) *> gen.sample.runHead.map {
-  //       case Some(sample) => acc :+ sample.value
-  //       case None         => acc
-  //     }
-  //   }
-  // def generateWithAutoSeed[R, A](gen: Gen[R, A], count: Int)(implicit trace: Trace): URIO[R, List[A]] =
-  //   ZIO.foldLeft(1 to count)(List.empty[A]) { (acc, _) =>
-  //     for {
-  //       nextSeed <- Random.nextInt.map(Seed(_))                            // Auto-advance seed
-  //       value <- gen.withSeed(nextSeed).sample.runHead.someOrFailException // Convert None to Failure
-  //     } yield acc :+ value.value
-  //   }
-
-  // // Generates UUIDs while advancing the seed in isolation
-  // def generateUUIDs(seed: Long, count: Int)(implicit trace: Trace): UIO[List[UUID]] = {
-  //   val uuidGen = Gen.uuid.withSeed(Seed(seed))
-  //   generateWithAdvancingSeed(seed, uuidGen, count)
-  // }
-
-  // def debugGenerateUUIDs(seed: Long, count: Int)(implicit trace: Trace): UIO[List[UUID]] = {
-  //   val uuidGen = Gen.uuid.withSeed(Seed(seed))
-  //   generateWithAdvancingSeed(seed, uuidGen, count).tap(uuids => ZIO.debug(uuids))
-  // }
-
-  // def fiberSafeGenerateUUIDs(count: Int)(implicit trace: Trace): UIO[List[UUID]] =
-  //   ZIO.fiberId.flatMap { fiberId =>
-  //     val seed = fiberId.id.toLong
-  //     generateUUIDs(seed, count)
-  //   }
 
   /**
    * A sized generator of vectors.

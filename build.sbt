@@ -34,41 +34,41 @@ addCommandAlias(
 
 addCommandAlias(
   "compileJVM",
-  "streamsTestsJVM/Test/compile;testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
+  ";coreTestsJVM/Test/compile;stacktracerJVM/Test/compile;streamsTestsJVM/Test/compile;testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
 )
 addCommandAlias(
   "testNative",
-  "streamsTestsNative/test;testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
+  ";coreTestsNative/test;stacktracerNative/test;streamsTestsNative/test;testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
 )
 addCommandAlias(
   "testJVM",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
+  ";coreTestsJVM/test;stacktracerJVM/test;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVMNoBenchmarks",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  ";coreTestsJVM/test;stacktracerJVM/test;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVM3",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  ";coreTestsJVM/test;stacktracerJVM/Test/compile;streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJS3",
-  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
+  ";coreTestsJS/test;stacktracerJS/test;streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
 )
 addCommandAlias(
   "testJS",
-  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
+  ";coreTestsJS/test;stacktracerJS/test;streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
 )
-// addCommandAlias(
-//   "mimaChecks",
-//   "all coreJVM/mimaReportBinaryIssues streamsJVM/mimaReportBinaryIssues testsJVM/mimaReportBinaryIssues"
-// )
+addCommandAlias(
+  "mimaChecks",
+  "all coreJVM/mimaReportBinaryIssues streamsJVM/mimaReportBinaryIssues testsJVM/mimaReportBinaryIssues"
+)
 
 lazy val projectsCommon = List(
   concurrent,
   core,
-  // coreTests,
+  coreTests,
   examples,
   internalMacros,
   macros,
@@ -236,32 +236,32 @@ lazy val core = crossProject(JSPlatform, JVMPlatform, NativePlatform)
     nativeSettings
   )
 
-// lazy val coreTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
-//   .in(file("core-tests"))
-//   .dependsOn(core)
-//   .dependsOn(tests)
-//   .settings(stdSettings("core-tests"))
-//   .settings(crossProjectSettings)
-//   .dependsOn(testRunner)
-//   .settings(buildInfoSettings("zio"))
-//   .settings(publish / skip := true)
-//   .settings(
-//     Compile / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
-//   )
-//   .enablePlugins(BuildInfoPlugin)
-//   .jvmConfigure(_.enablePlugins(JCStressPlugin))
-//   .jvmSettings(replSettings)
-//   .jsSettings(
-//     jsSettings,
-//     scalacOptions ++= {
-//       if (scalaVersion.value == Scala3) {
-//         List()
-//       } else {
-//         List("-P:scalajs:nowarnGlobalExecutionContext")
-//       }
-//     }
-//   )
-//   .nativeSettings(nativeSettings)
+lazy val coreTests = crossProject(JSPlatform, JVMPlatform, NativePlatform)
+  .in(file("core-tests"))
+  .dependsOn(core)
+  .dependsOn(tests)
+  .settings(stdSettings("core-tests"))
+  .settings(crossProjectSettings)
+  .dependsOn(testRunner)
+  .settings(buildInfoSettings("zio"))
+  .settings(publish / skip := true)
+  .settings(
+    Compile / classLoaderLayeringStrategy := ClassLoaderLayeringStrategy.Flat
+  )
+  .enablePlugins(BuildInfoPlugin)
+  .jvmConfigure(_.enablePlugins(JCStressPlugin))
+  .jvmSettings(replSettings)
+  .jsSettings(
+    jsSettings,
+    scalacOptions ++= {
+      if (scalaVersion.value == Scala3) {
+        List()
+      } else {
+        List("-P:scalajs:nowarnGlobalExecutionContext")
+      }
+    }
+  )
+  .nativeSettings(nativeSettings)
 
 lazy val managed = crossProject(JSPlatform, JVMPlatform, NativePlatform)
   .in(file("managed"))

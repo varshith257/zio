@@ -121,13 +121,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def forked(implicit trace: Trace): Gen[R, A] =
     Gen {
-      ZStream.unwrap {
-        self.sample.runCollect.fork.flatMap { fiber =>
-          fiber.join.map { results =>
-            ZStream.fromIterable(results)
-          }
-        }
-      }
+      self.sample.flatMap(sample => ZStream.fromZIO(sample.value.fork.map(fiber => Sample(sample.value, fiber.join))))
     }
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =

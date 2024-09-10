@@ -5416,11 +5416,11 @@ object ZStreamSpec extends ZIOBaseSpec {
               result <- fiber.await
             } yield assert(result)(isInterrupted)
           },
-          test("ZStream.fromInputStreamInterruptibleScoped should ensure proper resource cleanup after interruption") {
+          test("ZStream.fromInputStreamInterruptibleZIO should ensure interruption") {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("ZIO Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ByteArrayInputStream(data)
+              inputStream = new ClosableByteArrayInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptibleZIO(ZIO.succeed(inputStream))
                          .tap(_ => latch.succeed(()) *> ZIO.never)
@@ -5814,3 +5814,15 @@ object ZStreamSpec extends ZIOBaseSpec {
 
   case class Resource(idx: Int)
 }
+
+class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
+  var isClosed: Boolean = false
+
+  override def close(): Unit = {
+    isClosed = true
+    super.close()
+  }
+
+  def isClosed(): Boolean = isClosed
+}
+

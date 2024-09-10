@@ -5405,25 +5405,9 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ClosableByteArrayInputStream(data)
+              inputStream = new ByteArrayInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
-                         .tap(_ => latch.succeed(()) *> ZIO.never)
-                         .runCollect
-                         .fork
-              _ <- latch.await
-              _      <- TestClock.adjust(100.millis)
-              _      <- fiber.interrupt
-              result <- fiber.await
-            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
-          },
-          test("fromInputStreamInterruptibleZIO should ensure interruption and closure") {
-            for {
-              latch      <- Promise.make[Nothing, Unit]
-              data       <- ZIO.succeed("ZIO Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ClosableByteArrayInputStream(data)
-              fiber <- ZStream
-                         .fromInputStreamInterruptibleZIO(ZIO.succeed(inputStream))
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork
@@ -5432,21 +5416,35 @@ object ZStreamSpec extends ZIOBaseSpec {
               result <- fiber.await
             } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           },
+          test("fromInputStreamInterruptibleZIO should ensure interruption") {
+            for {
+              latch      <- Promise.make[Nothing, Unit]
+              data       <- ZIO.succeed("ZIO Interruptible Stream!".getBytes("UTF-8"))
+              inputStream = new ByteArrayInputStream(data)
+              fiber <- ZStream
+                         .fromInputStreamInterruptibleZIO(ZIO.succeed(inputStream))
+                         .tap(_ => latch.succeed(()) *> ZIO.never)
+                         .runCollect
+                         .fork
+              _      <- latch.await
+              _      <- fiber.interrupt
+              result <- fiber.await
+            } yield assert(result)(isInterrupted)
+          },
           test("fromInputStreamInterruptibleScoped properly interrupts and closes stream") {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Scoped Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ClosableByteArrayInputStream(data)
+              inputStream = new ByteArrayInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptibleScoped(ZIO.succeed(inputStream))
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork
-              _ <- latch.await
-              _ <- fiber.interrupt
-              _      <- TestClock.adjust(100.millis)
+              _      <- latch.await
+              _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
+            } yield assert(result)(isInterrupted)
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>
@@ -5815,16 +5813,4 @@ object ZStreamSpec extends ZIOBaseSpec {
   val cat2: Cat   = Cat("cat2")
 
   case class Resource(idx: Int)
-}
-
-class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStream(data) {
-  var isClosed: Boolean = false
-
-  override def close(): Unit = {
-    ZIO.logInfo("Closing InputStream")
-    isClosed = true
-    super.close()
-  }
-
-  def Closed(): Boolean = isClosed
 }

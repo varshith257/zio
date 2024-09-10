@@ -5405,7 +5405,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ByteArrayInputStream(data)
+              inputStream = new ClosableByteArrayInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptible(inputStream)
                          .tap(_ => latch.succeed(()) *> ZIO.never)
@@ -5414,9 +5414,9 @@ object ZStreamSpec extends ZIOBaseSpec {
               _      <- latch.await
               _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted)
+            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           },
-          test("ZStream.fromInputStreamInterruptibleZIO should ensure interruption") {
+          test("fromInputStreamInterruptibleZIO should ensure interruption and closure") {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("ZIO Interruptible Stream!".getBytes("UTF-8"))
@@ -5435,7 +5435,7 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Scoped Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ByteArrayInputStream(data)
+              inputStream = new ClosableByteArrayInputStream(data)
               fiber <- ZStream
                          .fromInputStreamInterruptibleScoped(ZIO.succeed(inputStream))
                          .tap(_ => latch.succeed(()) *> ZIO.never)
@@ -5444,7 +5444,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _      <- latch.await
               _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted)
+            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           }
         ),
         test("fromIterable")(check(Gen.small(Gen.chunkOfN(_)(Gen.int))) { l =>

@@ -5823,6 +5823,6 @@ class ClosableByteArrayInputStream(data: Array[Byte]) extends ByteArrayInputStre
     super.close()
   }
 
-  def isClosed(): Boolean = isClosed
+  def Closed(): Boolean = isClosed
 }
 

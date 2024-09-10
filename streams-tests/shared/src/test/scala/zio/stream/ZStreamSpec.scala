@@ -5412,7 +5412,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .runCollect
                          .fork
               _ <- latch.await
-              _ <- ZIO.sleep(100.millis) // Add a delay to ensure fiber has started
+              _      <- TestClock.adjust(100.millis)
               _      <- fiber.interrupt
               result <- fiber.await
             } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
@@ -5444,7 +5444,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                          .fork
               _ <- latch.await
               _ <- fiber.interrupt
-              _ <- ZIO.sleep(100.millis) // Add a delay to ensure fiber has started
+              _      <- TestClock.adjust(100.millis)
               result <- fiber.await
             } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
           }

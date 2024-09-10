@@ -797,6 +797,11 @@ object GenSpec extends ZIOBaseSpec {
         ) { id =>
           ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
         }
+      },
+      test("foo") {
+        Gen.fromIterable(List(1, 2, 3, 4)).forked.runCollect.map { list =>
+          assertTrue(list == List(1, 2, 3, 4)) // list == List(1) passes but it's wrong
+        }
       }
     )
   )

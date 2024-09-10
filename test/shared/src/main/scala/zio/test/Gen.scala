@@ -119,20 +119,15 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    * interference when combining randomness or side-effectful generators in for
    * comprehensions.
    */
-  def forked(implicit trace: Trace): Gen[R, A] = {
-    // Fork to isolate the random and deterministic parts
-    val randomStream = sample.runCollect.fork
-    Gen
-      .fromZIO(
-        randomStream.flatMap { fiber =>
-          fiber.join.map { samples =>
-            // Create a new generator from the samples with their independent values
-            Gen.fromIterable(samples.map(_.value))
-          }.fork.flatMap(_.join) // Fork the new generator and join it for random isolation
-        }
-      )
-      .flatten // Flatten the result to ensure proper collection of values
-  }
+  def forked(implicit trace: Trace): Gen[R, A] =
+    Gen.fromZIO(
+      sample.runCollect.fork.flatMap { fiber =>
+        fiber.join.map { samples =>
+          // Each sample is collected and mapped to a new generator
+          Gen.fromIterable(samples.map(_.value))
+        }.flatMap(identity)  // Flatten the generated samples
+      }.fork.flatMap(_.join) // Ensure the isolation of random generators
+    )
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))

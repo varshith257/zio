@@ -120,16 +120,11 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    * comprehensions.
    */
   def forked(implicit trace: Trace): Gen[R, A] =
-    Gen {
-      self.sample.flatMap(sample =>
-        ZStream.fromZIO {
-          for {
-            fiber <- sample.shrink.runCollect.fork                            // Forking the shrinker to ensure all samples are handled
-            shrinkedSamples <- fiber.join                                     // Joining the fiber to collect all shrunk samples
-          } yield Sample(sample.value, ZStream.fromIterable(shrinkedSamples)) // Preserving the value and shrinks
-        }
-      )
-    }
+    Gen.fromZIO(
+      sample.runCollect.fork.flatMap { fiber =>
+        fiber.join.orDie // Collect all samples from the generator, not just the first one
+      }.map(_.value)     // Map to the values of all collected samples
+    )
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))

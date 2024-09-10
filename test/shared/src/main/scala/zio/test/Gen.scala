@@ -120,13 +120,15 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    * comprehensions.
    */
   def forked(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(
-      sample.runCollect.fork.flatMap { fiber =>
-        fiber.join.map(samples =>
-          Gen.fromIterable(samples.map(_.value))
-        )                    // Collect all samples and create a Gen from the values
-      }.flatMap(identity(_)) // Explicitly apply the identity function
-    )
+    Gen
+      .fromZIO(
+        sample.runCollect.fork.flatMap { fiber =>
+          fiber.join.map { samples =>
+            Gen.fromIterable(samples.map(_.value)) // Collect all samples and create a Gen from the values
+          }
+        }.map(identity) // Apply identity to avoid flatMapping with a Gen directly
+      )
+      .flatten // Flatten the nested Gen
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))

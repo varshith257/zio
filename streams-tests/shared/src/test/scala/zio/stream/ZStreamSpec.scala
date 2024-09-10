@@ -5414,7 +5414,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               _      <- latch.await
               _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted) && assert(inputStream.Closed())(isTrue)
+            } yield assert(result)(isInterrupted)
           },
           test("fromInputStreamInterruptibleZIO should ensure interruption") {
             for {

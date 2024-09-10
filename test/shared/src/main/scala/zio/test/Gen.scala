@@ -125,8 +125,8 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
         sample.runCollect.fork.flatMap { fiber =>
           fiber.join.map { samples =>
             Gen.fromIterable(samples.map(_.value)) // Collect all samples and create a Gen from the values
-          }
-        }.map(identity) // Apply identity to avoid flatMapping with a Gen directly
+          }.fork.flatMap(_.join)                   // Fork and join the random part to isolate state
+        }
       )
       .flatten // Flatten the nested Gen
 

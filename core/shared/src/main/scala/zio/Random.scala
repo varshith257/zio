@@ -21,6 +21,10 @@ import zio.stacktracer.TracingImplicits.disableAutoTrace
 
 import java.util.UUID
 import scala.annotation.tailrec
+import zio.Clock
+import zio.{UIO, ZIO}
+import java.util.concurrent.TimeUnit
+import zio.Clock
 
 trait Random extends Serializable { self =>
   def nextBoolean(implicit trace: Trace): UIO[Boolean]
@@ -259,9 +263,14 @@ object Random extends Serializable {
         override def nextString(length: Int)(implicit unsafe: Unsafe): String =
           scala.util.Random.nextString(length)
 
-        override def nextUUID()(implicit unsafe: Unsafe): UUID =
-          Random.nextUUIDWith(() => nextLong())
-
+        override def nextUUID()(implicit unsafe: Unsafe): UUID = {
+          val mostSigBits  = nextLong()(unsafe)
+          val leastSigBits = nextLong()(unsafe)
+          new UUID(
+            (mostSigBits & ~0x0000f000) | 0x00004000,                   // Set version to 4
+            (leastSigBits & ~(0xc0000000L << 32)) | (0x80000000L << 32) // Set variant to IETF variant
+          )
+        }
         override def setSeed(seed: Long)(implicit unsafe: Unsafe): Unit =
           scala.util.Random.setSeed(seed)
 
@@ -387,8 +396,14 @@ object Random extends Serializable {
         override def nextString(length: Int)(implicit unsafe: Unsafe): String =
           random.nextString(length)
 
-        override def nextUUID()(implicit unsafe: Unsafe): UUID =
-          Random.nextUUIDWith(() => nextLong())
+        override def nextUUID()(implicit unsafe: Unsafe): UUID = {
+          val mostSigBits  = random.nextLong()
+          val leastSigBits = random.nextLong()
+          new UUID(
+            (mostSigBits & ~0x0000f000) | 0x00004000,                   // Set version to 4
+            (leastSigBits & ~(0xc0000000L << 32)) | (0x80000000L << 32) // Set variant to IETF variant
+          )
+        }
 
         override def setSeed(seed: Long)(implicit unsafe: Unsafe): Unit =
           random.setSeed(seed)
@@ -628,4 +643,13 @@ object Random extends Serializable {
    */
   def shuffle[A](list: => List[A])(implicit trace: Trace): UIO[List[A]] =
     ZIO.randomWith(_.shuffle(list))
+}
+
+final case class Seed(seedValue: Long) {
+  def next: Seed = Seed(seedValue + 1) // Simple seed advancement
+}
+
+object Seed {
+  def initial(implicit trace: Trace): UIO[Seed] =
+    Clock.currentTime(TimeUnit.MILLISECONDS).map(Seed(_))
 }

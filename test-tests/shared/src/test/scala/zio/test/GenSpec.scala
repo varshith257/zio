@@ -8,6 +8,7 @@ import zio.test.{check => Check, checkN => CheckN}
 
 import java.time.{Duration => _, _}
 import scala.math.Numeric.DoubleIsFractional
+// import zio.Random._
 
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
@@ -776,6 +777,35 @@ object GenSpec extends ZIOBaseSpec {
       check(Gen.setOfN(2)(Gen.fromIterable(List(1, 2, 3)))) { set =>
         assertTrue(set.size == 2)
       }
-    }
-  )
+    },
+    suite("for-comprehension generators")(
+      test("fromIterable before uuid") {
+        check(
+          for {
+            _  <- Gen.fromIterable(List(1, 2, 3, 4))
+            id <- Gen.uuid
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+        }
+      },
+      test("uuid before fromIterable with logging") {
+        check(
+          for {
+            _ <- Gen.int.mapZIO(n => ZIO.logInfo(s"Generated int: $n").as(n))    // Use mapZIO to log and return int
+            id <- Gen.uuid.mapZIO(u => ZIO.logInfo(s"Generated UUID: $u").as(u)) // Log the UUID properly
+            _ <-
+              Gen.fromIterable(List(1, 2, 3, 4)).mapZIO(n => ZIO.logInfo(s"Iterating: $n").as(n)) // Log the iteration
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"Final UUID: $id") *> assertCompletes
+        }
+      }
+      // test("foo") {
+      //   Gen.fromIterable(List(1, 2, 3, 4)).forked.runCollect.map { list =>
+      //     assertTrue(list == List(1, 2, 3, 4)) // list == List(1) passes but it's wrong
+      //   }
+      // }
+    )
+  ).provideLayer(ZLayer.succeed(Random.RandomLive))
 }

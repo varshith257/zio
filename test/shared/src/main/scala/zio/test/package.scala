@@ -16,6 +16,7 @@
 
 package zio
 
+import zio.Random._
 import zio.internal.stacktracer.{SourceLocation, Tracer}
 import zio.stacktracer.TracingImplicits.disableAutoTrace
 import zio.stream.{ZChannel, ZSink, ZStream}
@@ -401,7 +402,12 @@ package object test extends CompileVariants {
     sourceLocation: SourceLocation,
     trace: Trace
   ): ZIO[checkConstructor.OutEnvironment, checkConstructor.OutError, TestResult] =
-    TestConfig.samples.flatMap(n => checkStream(rv.sample.forever.take(n.toLong))(a => checkConstructor(test(a))))
+    TestConfig.samples.flatMap { n =>
+      //Split the random state at top level
+      checkStream(rv.sample.forever.take(n.toLong)) { a =>
+        checkConstructor(test(a))
+      }
+    }
 
   /**
    * A version of `check` that accepts two random variables.

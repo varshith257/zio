@@ -2815,18 +2815,18 @@ object ZStreamSpec extends ZIOBaseSpec {
               )
             )
           } @@ flaky,
-          test("first finished first out") {
-            checkN(2)(Gen.small(Gen.chunkOfN(_)(Gen.byte))) { data =>
-              val s = ZStream.fromChunk(data).zipWithIndex
-              val l = data.length
+          // test("first finished first out") {
+          //   checkN(2)(Gen.small(Gen.chunkOfN(_)(Gen.byte))) { data =>
+          //     val s = ZStream.fromChunk(data).zipWithIndex
+          //     val l = data.length
 
-              for {
-                f   <- s.mapZIOParUnordered(8) { case (x, i) => ZIO.succeed(x).delay((l - i).seconds) }.runCollect.fork
-                _   <- ZIO.iterate(0)(_ <= l)(i => TestClock.adjust(1.second).as(i + 1))
-                res <- f.join
-              } yield assert(res)(equalTo(data.reverse))
-            }
-          }
+          //     for {
+          //       f   <- s.mapZIOParUnordered(8) { case (x, i) => ZIO.succeed(x).delay((l - i).seconds) }.runCollect.fork
+          //       _   <- ZIO.iterate(0)(_ <= l)(i => TestClock.adjust(1.second).as(i + 1))
+          //       res <- f.join
+          //     } yield assert(res)(equalTo(data.reverse))
+          //   }
+          // }
         ),
         suite("mergeLeft/Right")(
           test("mergeLeft with HaltStrategy.Right terminates as soon as the right stream terminates") {

@@ -113,6 +113,22 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
   def flatten[R1 <: R, B](implicit ev: A <:< Gen[R1, B], trace: Trace): Gen[R1, B] =
     flatMap(ev)
 
+  /**
+   * Runs the generator in a separate fiber, ensuring its random state and side
+   * effects are isolated from other generators. Use this to prevent
+   * interference when combining randomness or side-effectful generators in for
+   * comprehensions.
+   */
+  // def forked(implicit trace: Trace): Gen[R, A] =
+  //   Gen.fromZIO(
+  //     sample.runCollect.fork.flatMap { fiber =>
+  //       fiber.join.map { samples =>
+  //         // Each sample is collected and mapped to a new generator
+  //         Gen.fromIterable(samples.map(_.value))
+  //       }.flatMap(identity)  // Flatten the generated samples
+  //     }.fork.flatMap(_.join) // Ensure the isolation of random generators
+  //   )
+
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))
 
@@ -177,9 +193,31 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def zipWith[R1 <: R, B, C](that: Gen[R1, B])(f: (A, B) => C)(implicit trace: Trace): Gen[R1, C] =
     self.flatMap(a => that.map(b => f(a, b)))
+
+// // Method that forks and joins automatically for generators requiring independent execution
+//   def forked(implicit trace: Trace): Gen[R, A] =
+//     Gen.fromZIO(
+//       sample.runCollect.someOrFailException.fork.flatMap { fiber =>
+//         fiber.join.map(_.value).orDie
+//       }
+//     )
+
+  /**
+   * Automatically ensures independent execution for generators involving
+   * randomness
+   */
+  // def independent(implicit trace: Trace): Gen[R, A] = forked
 }
 
 object Gen extends GenZIO with FunctionVariants with TimeVariants {
+
+  def withRandomness[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R with Random, A] =
+    Gen {
+      gen.sample.flatMap { sample =>
+        // Consume randomness to advance RNG state
+        ZStream.fromZIO(Random.nextInt.map(_ => sample))
+      }
+    }
 
   /**
    * A generator of alpha characters.

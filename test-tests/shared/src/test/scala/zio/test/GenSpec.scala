@@ -8,11 +8,9 @@ import zio.test.{check => Check, checkN => CheckN}
 
 import java.time.{Duration => _, _}
 import scala.math.Numeric.DoubleIsFractional
-// import zio.internal.FiberScope
 
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
-  // val seed                                                    = 12345L
 
   def spec = suite("GenSpec")(
     suite("integration tests")(
@@ -725,124 +723,6 @@ object GenSpec extends ZIOBaseSpec {
         )
       )
     },
-    // test("ScaalaCheck Approach") {
-    //   val seed   = 12345L
-    //   val uuids1 = Gen.generateUUIDs(seed, 5)
-    //   val uuids2 = Gen.generateUUIDs(seed, 5)
-
-    //   assert(uuids1)(equalTo(uuids2)) // UUIDs generated with the same seed should match
-    // },
-    // test("ScaalaCheck Approach Debug") {
-    //   val seed   = 12345L
-    //   val uuids1 = Gen.debugGenerateUUIDs(seed, 5)
-    //   val uuids2 = Gen.debugGenerateUUIDs(seed, 5)
-
-    //   assert(uuids1)(equalTo(uuids2))
-    // },
-    // test("fromIterable before uuid") {
-    //   check(
-    //     for {
-    //       _ <- Gen.fromIterable(List(1, 2))
-    //       id <- Gen.uuid // Wrap in Gen.fromZIO
-    //     } yield id
-    //   ) { id =>
-    //     ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
-    //   }
-    // },
-    // test("uuid before fromIterable with independent scopes") {
-    //   check(
-    //     for {
-    //       uuidFiber <-
-    //         Gen.fromZIO(Gen.uuid.sample.runHead.someOrFailException.fork) // Fork UUID generation and handle None
-    //       iterableFiber <- Gen.fromZIO(
-    //                          Gen.fromIterable(List(1, 2)).sample.runHead.someOrFailException.fork
-    //                        )                                     // Fork fromIterable and handle None
-    //       uuid <- Gen.fromZIO(uuidFiber.join.map(_.value).orDie) // Join UUID fiber and extract value, handling failure
-    //       _ <- Gen.fromZIO(
-    //              iterableFiber.join.map(_.value).orDie
-    //            ) // Join fromIterable fiber and extract value, handling failure
-    //     } yield uuid
-    //   ) { id =>
-    //     ZIO.logInfo(s"uuid before fromIterable with independent scopes: $id") *> assertCompletes
-    //   }
-    // },
-    suite("Hooray")(
-      test("LOG fromIterable before uuid") {
-        check(
-          for {
-            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
-            id <- Gen.uuid.independent
-          } yield id
-        ) { id =>
-          ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
-        }
-      },
-      test("LOG uuid before fromIterable") {
-        check(
-          for {
-            id <- Gen.uuid.independent
-            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
-          } yield id
-        ) { id =>
-          ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
-        }
-      },
-      test("fromIterable before uuid generates distinct UUIDs") {
-        check(
-          for {
-            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
-            id <- Gen.uuid.independent
-          } yield id
-        ) { ids =>
-          assertTrue(ids.distinct.size == ids.size)
-        }
-      },
-      test("uuid before fromIterable generates distinct UUIDs") {
-        check(
-          for {
-            id <- Gen.uuid.independent
-            _  <- Gen.fromIterable(List(1, 2, 3, 4)).independent
-          } yield id
-        ) { ids =>
-          assertTrue(ids.distinct.size == ids.size)
-        }
-      }
-
-      // test("fromIterable before uuid") {
-      //   check(
-      //     for {
-      //       _  <- Gen.fromIterable(List(1, 2, 3, 4))
-      //       id <- Gen.uuid
-      //     } yield id
-      //   ) { id1 =>
-      //     check(
-      //       for {
-      //         _  <- Gen.fromIterable(List(1, 2, 3, 4))
-      //         id <- Gen.uuid
-      //       } yield id
-      //     ) { id2 =>
-      //       assertTrue(id1 != id2) // Ensures UUIDs generated in each check are distinct
-      //     }
-      //   }
-      // },
-      // test("uuid before fromIterable") {
-      //   check(
-      //     for {
-      //       id1 <- Gen.uuid
-      //       _   <- Gen.fromIterable(List(1, 2, 3, 4))
-      //     } yield id1
-      //   ) { id1 =>
-      //     check(
-      //       for {
-      //         id2 <- Gen.uuid
-      //         _   <- Gen.fromIterable(List(1, 2, 3, 4))
-      //       } yield id2
-      //     ) { id2 =>
-      //       assertTrue(id1 != id2) // Ensures UUIDs generated in each check are distinct
-      //     }
-      //   }
-      // }
-    ),
     test("unfoldGen") {
       sealed trait Command
       case object Pop                   extends Command
@@ -896,6 +776,33 @@ object GenSpec extends ZIOBaseSpec {
       check(Gen.setOfN(2)(Gen.fromIterable(List(1, 2, 3)))) { set =>
         assertTrue(set.size == 2)
       }
-    }
+    },
+    suite("for-comprehension generators")(
+      test("fromIterable before uuid") {
+        check(
+          for {
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).forked
+            id <- Gen.uuid.forked
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
+        }
+      },
+      test("uuid before fromIterable") {
+        check(
+          for {
+            id <- Gen.uuid.forked
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).forked
+          } yield id
+        ) { id =>
+          ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+        }
+      },
+      test("foo") {
+        Gen.fromIterable(List(1, 2, 3, 4)).forked.runCollect.map { list =>
+          assertTrue(list == List(1, 2, 3, 4)) // list == List(1) passes but it's wrong
+        }
+      }
+    )
   )
 }

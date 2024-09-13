@@ -804,5 +804,5 @@ object GenSpec extends ZIOBaseSpec {
       //   }
       // }
     )
-  )
+  ).provideLayer(Random.live)
 }

@@ -14,6 +14,7 @@ import java.util.concurrent.TimeUnit
 @Fork(4)
 class SemaphoreBenchmark {
 
+
   @Param(Array("1", "10"))
   var nSTM: Int = _
 

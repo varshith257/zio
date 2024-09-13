@@ -201,7 +201,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 //         fiber.join.map(_.value).orDie
 //       }
 //     )
-  def withRandomness[R, A](gen: Gen[R, A]): Gen[R with Random, A] =
+  def withRandomness[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R with Random, A] =
     Gen {
       gen.sample.flatMap { sample =>
         // Consume randomness to advance RNG state

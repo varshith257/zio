@@ -3,16 +3,16 @@ name: Benchmark
 on:
   pull_request:
     paths:
-      - 'benchmarks/**'  # Trigger if any file in the benchmarks folder is modified
+      - "benchmarks/**" # Trigger if any file in the benchmarks folder is modified
 
 jobs:
   run-benchmarks:
     runs-on: ubuntu-latest
     if: github.event.pull_request
     env:
-        JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
-        SBT_OPTS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # Needed for sbt
-        NODE_OPTIONS: --max_old_space_size=6144
+      JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
+      SBT_OPTS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # Needed for sbt
+      NODE_OPTIONS: --max_old_space_size=6144
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -20,8 +20,8 @@ jobs:
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
-          distribution: 'temurin'
-          java-version: '17'
+          distribution: "temurin"
+          java-version: "17"
 
       - name: Cache SBT dependencies
         uses: actions/cache@v3
@@ -35,9 +35,10 @@ jobs:
       - name: Run JMH Benchmarks
         run: |
           changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          echo "Changed files: $changed_files"
           for file in $changed_files; do
-            if [[ "$file" == benchmarks/*.scala ]]; then
-              sbt "jmh:run -i 10 -wi 10 -f1 -t1"
+            if [[ "$file" == benchmarks/**/*.scala ]]; then
+              sbt "jmh:run -i 10 -wi 10 -f1 -t1" | tee benchmark-results.txt
               break
             fi
           done

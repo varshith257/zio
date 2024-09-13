@@ -792,9 +792,9 @@ object GenSpec extends ZIOBaseSpec {
       test("uuid before fromIterable with logging") {
         check(
           for {
-            _  <- Gen.int.flatMap(n => Gen.succeed(ZIO.logInfo(s"Generated int: $n").as(n)))
-            id <- Gen.uuid.flatMap(u => Gen.succeed(ZIO.logInfo(s"Generated UUID: $u").as(u)))
-            _  <- Gen.fromIterable(List(1, 2, 3, 4)).flatMap(n => Gen.succeed(ZIO.logInfo(s"Iterating: $n").as(n)))
+            _  <- Gen.int.flatMap(n => Gen.const(ZIO.logInfo(s"Generated int: $n").as(n)))
+            id <- Gen.uuid.flatMap(u => Gen.const(ZIO.logInfo(s"Generated UUID: $u").as(u)))
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).flatMap(n => Gen.const(ZIO.logInfo(s"Iterating: $n").as(n)))
           } yield id
         ) { id =>
           ZIO.logInfo(s"Final UUID: $id") *> assertCompletes

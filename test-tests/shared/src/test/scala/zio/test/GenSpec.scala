@@ -8,6 +8,7 @@ import zio.test.{check => Check, checkN => CheckN}
 
 import java.time.{Duration => _, _}
 import scala.math.Numeric.DoubleIsFractional
+// import zio.Random._
 
 object GenSpec extends ZIOBaseSpec {
   implicit val localDateTimeOrdering: Ordering[LocalDateTime] = _ compareTo _
@@ -804,5 +805,5 @@ object GenSpec extends ZIOBaseSpec {
       //   }
       // }
     )
-  ).provideLayer(ZLayer.succeed(Random))
+).provideLayer(ZLayer.succeed(Random.RandomLive))
 }

@@ -34,31 +34,31 @@ addCommandAlias(
 
 addCommandAlias(
   "compileJVM",
-  "streamsTestsJVM/Test/compile;testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
+  "testTestsJVM/Test/compile;testMagnoliaTestsJVM/Test/compile;testRefinedJVM/Test/compile;testRunnerJVM/Test/compile;examplesJVM/Test/compile;macrosTestsJVM/Test/compile;concurrentJVM/Test/compile;managedTestsJVM/Test/compile"
 )
 addCommandAlias(
   "testNative",
-  "streamsTestsNative/test;testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
+  "testTestsNative/test;examplesNative/Test/compile;macrosTestsNative/test;concurrentNative/test"
 )
 addCommandAlias(
   "testJVM",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
+  "testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;benchmarks/Test/compile;macrosTestsJVM/test;testJunitRunnerTests/test;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVMNoBenchmarks",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  "testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/Test/compile;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJVM3",
-  "streamsTestsJVM/test;testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
+  "testTestsJVM/test;testMagnoliaTestsJVM/test;testRefinedJVM/test;testRunnerJVM/Test/run;examplesJVM/Test/compile;concurrentJVM/test;managedTestsJVM/test"
 )
 addCommandAlias(
   "testJS3",
-  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
+  "testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;concurrentJS/test"
 )
 addCommandAlias(
   "testJS",
-  "streamsTestsJS/test;testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
+  "testTestsJS/test;testMagnoliaTestsJS/test;testRefinedJS/test;examplesJS/Test/compile;macrosTestsJS/test;concurrentJS/test"
 )
 // addCommandAlias(
 //   "mimaChecks",

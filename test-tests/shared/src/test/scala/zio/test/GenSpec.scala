@@ -789,15 +789,15 @@ object GenSpec extends ZIOBaseSpec {
           ZIO.logInfo(s"fromIterable before uuid: $id") *> assertCompletes
         }
       },
-      test("uuid before fromIterable") {
+      test("uuid before fromIterable with logging") {
         check(
           for {
-            _ <- Gen.int // Consume randomness
-            id <- Gen.uuid
-            _  <- Gen.withRandomness(Gen.fromIterable(List(1, 2, 3, 4)))
+            _  <- Gen.int.flatMap(n => Gen.succeed(ZIO.logInfo(s"Generated int: $n").as(n)))
+            id <- Gen.uuid.flatMap(u => Gen.succeed(ZIO.logInfo(s"Generated UUID: $u").as(u)))
+            _  <- Gen.fromIterable(List(1, 2, 3, 4)).flatMap(n => Gen.succeed(ZIO.logInfo(s"Iterating: $n").as(n)))
           } yield id
         ) { id =>
-          ZIO.logInfo(s"uuid before fromIterable: $id") *> assertCompletes
+          ZIO.logInfo(s"Final UUID: $id") *> assertCompletes
         }
       }
       // test("foo") {

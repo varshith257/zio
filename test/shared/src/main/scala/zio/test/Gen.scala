@@ -205,7 +205,7 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
     Gen {
       gen.sample.flatMap { sample =>
         // Consume randomness to advance RNG state
-        ZStream.fromEffect(Random.nextInt.map(_ => sample))
+        ZStream.fromZIO(Random.nextInt.map(_ => sample))
       }
     }
 

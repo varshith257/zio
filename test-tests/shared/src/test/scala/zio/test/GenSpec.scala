@@ -804,5 +804,5 @@ object GenSpec extends ZIOBaseSpec {
       //   }
       // }
     )
-  ).provideLayer(ZLayer.succeed(Random.default))
+  ).provideLayer(ZLayer.succeed(Random))
 }

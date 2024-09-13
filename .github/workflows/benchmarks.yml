@@ -16,6 +16,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Java
         uses: actions/setup-java@v4
@@ -34,7 +36,7 @@ jobs:
 
       - name: Run JMH Benchmarks
         run: |
-          changed_files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }})
+          changed_files=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
           echo "Changed files: $changed_files"
           for file in $changed_files; do
             if [[ "$file" == benchmarks/**/*.scala ]]; then

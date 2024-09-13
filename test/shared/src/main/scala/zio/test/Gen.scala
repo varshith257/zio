@@ -193,6 +193,26 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def zipWith[R1 <: R, B, C](that: Gen[R1, B])(f: (A, B) => C)(implicit trace: Trace): Gen[R1, C] =
     self.flatMap(a => that.map(b => f(a, b)))
+
+// // Method that forks and joins automatically for generators requiring independent execution
+//   def forked(implicit trace: Trace): Gen[R, A] =
+//     Gen.fromZIO(
+//       sample.runCollect.someOrFailException.fork.flatMap { fiber =>
+//         fiber.join.map(_.value).orDie
+//       }
+//     )
+def withRandomness[R, A](gen: Gen[R, A]): Gen[R with Random, A] =
+  Gen {
+    gen.sample.mapM { sample =>
+      // Consume randomness to advance RNG state
+      nextInt.map(_ => sample)
+    }
+  }
+  /**
+   * Automatically ensures independent execution for generators involving
+   * randomness
+   */
+  // def independent(implicit trace: Trace): Gen[R, A] = forked
 }
 
 object Gen extends GenZIO with FunctionVariants with TimeVariants {

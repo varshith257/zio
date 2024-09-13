@@ -792,6 +792,7 @@ object GenSpec extends ZIOBaseSpec {
       test("uuid before fromIterable") {
         check(
           for {
+            _ <- Gen.int // Consume randomness
             id <- Gen.uuid
             _  <- Gen.withRandomness(Gen.fromIterable(List(1, 2, 3, 4)))
           } yield id

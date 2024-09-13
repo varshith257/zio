@@ -5,7 +5,7 @@ import zio.BenchmarkUtil._
 import zio._
 
 import java.util.concurrent.TimeUnit
-
+//Benchmarks Semaphore
 @State(JScope.Thread)
 @BenchmarkMode(Array(Mode.Throughput))
 @OutputTimeUnit(TimeUnit.SECONDS)

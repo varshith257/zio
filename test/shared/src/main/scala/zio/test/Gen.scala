@@ -119,15 +119,15 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    * interference when combining randomness or side-effectful generators in for
    * comprehensions.
    */
-  def forked(implicit trace: Trace): Gen[R, A] =
-    Gen.fromZIO(
-      sample.runCollect.fork.flatMap { fiber =>
-        fiber.join.map { samples =>
-          // Each sample is collected and mapped to a new generator
-          Gen.fromIterable(samples.map(_.value))
-        }.flatMap(identity)  // Flatten the generated samples
-      }.fork.flatMap(_.join) // Ensure the isolation of random generators
-    )
+  // def forked(implicit trace: Trace): Gen[R, A] =
+  //   Gen.fromZIO(
+  //     sample.runCollect.fork.flatMap { fiber =>
+  //       fiber.join.map { samples =>
+  //         // Each sample is collected and mapped to a new generator
+  //         Gen.fromIterable(samples.map(_.value))
+  //       }.flatMap(identity)  // Flatten the generated samples
+  //     }.fork.flatMap(_.join) // Ensure the isolation of random generators
+  //   )
 
   def map[B](f: A => B)(implicit trace: Trace): Gen[R, B] =
     Gen(sample.map(_.map(f)))
@@ -201,13 +201,14 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 //         fiber.join.map(_.value).orDie
 //       }
 //     )
-def withRandomness[R, A](gen: Gen[R, A]): Gen[R with Random, A] =
-  Gen {
-    gen.sample.mapM { sample =>
-      // Consume randomness to advance RNG state
-      nextInt.map(_ => sample)
+  def withRandomness[R, A](gen: Gen[R, A]): Gen[R with Random, A] =
+    Gen {
+      gen.sample.flatMap { sample =>
+        // Consume randomness to advance RNG state
+        ZStream.fromEffect(Random.nextInt.map(_ => sample))
+      }
     }
-  }
+
   /**
    * Automatically ensures independent execution for generators involving
    * randomness

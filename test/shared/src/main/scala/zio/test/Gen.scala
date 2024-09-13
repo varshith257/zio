@@ -177,6 +177,14 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
    */
   def runHead(implicit trace: Trace): ZIO[R, Nothing, Option[A]] =
     sample.map(_.value).runHead
+    
+  def withRandomness[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R with Random, A] =
+    Gen {
+      gen.sample.flatMap { sample =>
+        // Consume randomness to advance RNG state
+        ZStream.fromZIO(Random.nextInt.map(_ => sample))
+      }
+    }
 
   /**
    * Composes this generator with the specified generator to create a cartesian
@@ -201,13 +209,6 @@ final case class Gen[-R, +A](sample: ZStream[R, Nothing, Sample[R, A]]) { self =
 //         fiber.join.map(_.value).orDie
 //       }
 //     )
-  def withRandomness[R, A](gen: Gen[R, A])(implicit trace: Trace): Gen[R with Random, A] =
-    Gen {
-      gen.sample.flatMap { sample =>
-        // Consume randomness to advance RNG state
-        ZStream.fromZIO(Random.nextInt.map(_ => sample))
-      }
-    }
 
   /**
    * Automatically ensures independent execution for generators involving

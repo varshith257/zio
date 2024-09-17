@@ -1,65 +1,90 @@
-name: Benchmark
+# Benchmark workflow for ZIO Semaphore
+name: ZIO Benchmarks
 
 on:
+  push:
+    branches:
+      - main
   pull_request:
+    types: [opened, reopened, synchronize]
+    branches-ignore:
+      - gh-pages
     paths:
-      - "benchmarks/**" # Trigger if any file in the benchmarks folder is modified
+      - "benchmarks/src/main/scala/zio/stm/SemaphoreBenchmark.scala" # Only trigger if SemaphoreBenchmark changes
+      - "core/shared/src/main/scala/zio/Semaphore.scala"
+      - "core/shared/src/main/scala/zio/stm/TSemaphore.scala" # Optional: Include TSemaphore changes too
+
+    # Prevent concurrent builds on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # Allow access to GitHub pages and content updates
+  deployments: write
+  contents: write
 
 jobs:
-  run-benchmarks:
+  benchmark:
+    name: Run Semaphore Benchmark
     runs-on: ubuntu-latest
-    if: github.event.pull_request
-    env:
-      JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
-      SBT_OPTS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # Needed for sbt
-      NODE_OPTIONS: --max_old_space_size=6144
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+      - name: Checkout current branch
+        uses: actions/checkout@v4.1.1
         with:
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v4.2.1
         with:
-          distribution: "temurin"
-          java-version: "17"
+          distribution: temurin
+          java-version: 17
+          check-latest: true
 
-      - name: Cache SBT dependencies
+      - name: Use CI sbt jvmopts
+        run: |
+          mv .jvmopts .jvmopts_old
+          mv .jvmopts-ci .jvmopts
+          cat .jvmopts
+
+      - name: Compile project
+        run: sbt compile
+
+      - name: Run Semaphore Benchmarks
+        # JMH options:
+        # -wi 5: 5 warmup iterations
+        # -i 5: 5 benchmark iterations
+        # -r 1: Minimum time per measurement iteration (1 second)
+        # -w 1: Minimum time per warmup iteration (1 second)
+        # -t 1: Run with 1 thread
+        # -rf json: Output results in JSON format
+        # -to 120: Timeout per iteration (120 seconds)
+        run: sbt "benchmarks/jmh:run -wi 5 -i 5 -r 1 -w 1 -t 1 -to 120 -rf json -foe true"
+
+      - name: Cache benchmark data
         uses: actions/cache@v3
         with:
-          path: |
-            ~/.sbt
-            ~/.ivy2/cache
-            ~/.coursier
-          key: ${{ runner.os }}-sbt-${{ hashFiles('**/build.sbt') }}
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
 
-      - name: Run JMH Benchmarks
+      - name: Rollback JVM options
         run: |
-          changed_files=$(git diff --name-only origin/${{ github.base_ref }}..HEAD)
-          echo "Changed files: $changed_files"
-          for file in $changed_files; do
-            if [[ "$file" == benchmarks/**/*.scala ]]; then
-            sbt "Jmh/run -i 10 -wi 10 -f1 -t1"
-              break
-            fi
-          done
+          mv .jvmopts .jvmopts-ci
+          mv .jvmopts_old .jvmopts
+          cat .jvmopts
 
       - name: Upload Benchmark Results
-        uses: actions/upload-artifact@v3
+        uses: benchmark-action/github-action-benchmark@v1.20.3
         with:
-          name: benchmark-results
-          path: benchmark-results.txt
-
-      - name: Post Benchmark Results as PR Comment
-        uses: actions/github-script@v6
-        with:
-          script: |
-            const fs = require('fs');
-            const benchmarkResults = fs.readFileSync('benchmark-results.txt', 'utf8');
-            github.rest.issues.createComment({
-              issue_number: context.payload.pull_request.number,
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              body: `## Benchmark Results\n\n\`\`\`\n${benchmarkResults}\n\`\`\``
-            });
+          name: Semaphore JMH Benchmark
+          tool: "jmh"
+          output-file-path: benchmarks/target/jmh-result.json
+          # Access token to push updates
+          # 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
+          github-token: ${{ secrets.MY_GITHUB_TOKEN }}
+          # Automatically push and deploy to GitHub pages branch for benchmarking results
+          auto-push: true
+          alert-threshold: "200%" # Alert if performance changes by more than 200%
+          comment-on-alert: true # Post a comment on the PR if there's a performance alert
+          fail-on-alert: true # Fail the workflow if there's a performance regression
+          alert-comment-cc-users: "@varshith257"

@@ -5,6 +5,8 @@ on:
   push:
     branches:
       - main
+      - series/2.x
+
   pull_request:
     types: [opened, reopened, synchronize]
     branches-ignore:
@@ -66,11 +68,6 @@ jobs:
           path: ./cache
           key: ${{ runner.os }}-benchmark
 
-      - name: Rollback JVM options
-        run: |
-          mv .jvmopts .jvmopts-ci
-          mv .jvmopts_old .jvmopts
-          cat .jvmopts
 
       - name: Upload Benchmark Results
         uses: benchmark-action/github-action-benchmark@v1.20.3

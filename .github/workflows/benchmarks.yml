@@ -28,6 +28,11 @@ jobs:
   benchmark:
     name: Run Semaphore Benchmark
     runs-on: ubuntu-latest
+    if: github.event.pull_request
+    env:
+      JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
+      SBT_OPTS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # Needed for sbt
+      NODE_OPTIONS: --max_old_space_size=6144
     steps:
       - name: Checkout current branch
         uses: actions/checkout@v4.1.1
@@ -40,12 +45,6 @@ jobs:
           distribution: temurin
           java-version: 17
           check-latest: true
-
-      - name: Use CI sbt jvmopts
-        run: |
-          mv .jvmopts .jvmopts_old
-          mv .jvmopts-ci .jvmopts
-          cat .jvmopts
 
       - name: Compile project
         run: sbt compile

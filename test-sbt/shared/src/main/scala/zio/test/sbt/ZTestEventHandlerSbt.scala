@@ -16,7 +16,7 @@ import zio.test.{ExecutionEvent, TestAnnotation, TestFailure, ZTestEventHandler}
  */
 class ZTestEventHandlerSbt(eventHandler: EventHandler, taskDef: TaskDef, renderer: TestRenderer)
     extends ZTestEventHandler {
-  val semaphore = Semaphore.unsafe.make(1L)(Unsafe.unsafe)
+  val semaphore = Semaphore.unsafe.make(1L, fair = true)(Unsafe.unsafe)
   def handle(event: ExecutionEvent): UIO[Unit] =
     event match {
       // TODO Is there a non-sbt version of this I need to add similar handling to?

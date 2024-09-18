@@ -77,13 +77,13 @@ object Semaphore {
 
   object unsafe {
     def make(permits: Long, fair: Boolean)(implicit unsafe: Unsafe): Semaphore =
-      if (fair) new FairSemaphore(permits)
-      else new UnfairSemaphore(permits)
+      if (fair) new FairSemaphore(permits)(unsafe)
+      else new UnfairSemaphore(permits)(unsafe)
   }
 
   class FairSemaphore(permits: Long) extends Semaphore {
 
-    val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))
+    val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))(Unsafe.unsafe)
 
     def available(implicit trace: Trace): UIO[Long] =
       ref.get.map {
@@ -162,7 +162,7 @@ object Semaphore {
 }
 
 class UnfairSemaphore(permits: Long) extends Semaphore {
-  val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))
+  val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))(Unsafe.unsafe)
 
   def available(implicit trace: Trace): UIO[Long] =
     ref.get.map {
@@ -256,7 +256,7 @@ class UnfairSemaphore(permits: Long) extends Semaphore {
 }
 
 class SinglePermitSemaphore extends Semaphore {
-  private val locked = Ref.unsafe.make(false)
+  private val locked = Ref.unsafe.make(false)(Unsafe.unsafe)
 
   def available(implicit trace: Trace): UIO[Long] =
     locked.get.map(locked => if (locked) 0L else 1L)

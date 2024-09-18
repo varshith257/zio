@@ -263,7 +263,7 @@ object Ref extends Serializable {
     object unsafe {
       def make[A](a: A)(implicit unsafe: Unsafe): Synchronized[A] = {
         val ref       = Ref.unsafe.make(a)
-        val semaphore = Semaphore.unsafe.make(1)
+        val semaphore = Semaphore.unsafe.make(1, fair = true)
         new Ref.Synchronized[A] {
           def get(implicit trace: Trace): UIO[A] =
             ref.get

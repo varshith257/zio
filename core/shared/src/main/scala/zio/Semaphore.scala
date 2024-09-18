@@ -77,8 +77,8 @@ object Semaphore {
 
   object unsafe {
     def make(permits: Long, fair: Boolean)(implicit unsafe: Unsafe): Semaphore =
-      if (fair) new FairSemaphore(permits)(unsafe)
-      else new UnfairSemaphore(permits)(unsafe)
+      if (fair) new FairSemaphore()
+      else new UnfairSemaphore()
   }
 
   class FairSemaphore(permits: Long) extends Semaphore {

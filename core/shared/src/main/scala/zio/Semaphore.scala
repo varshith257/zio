@@ -267,6 +267,14 @@ class SinglePermitSemaphore extends Semaphore {
   def withPermitScoped(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
     ZIO.acquireRelease(reserve)(_.release).flatMap(_.acquire)
 
+  def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+    if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
+    else withPermit(zio)
+
+  def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
+    if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
+    else withPermitScoped
+
   case class Reservation(acquire: UIO[Unit], release: UIO[Any])
 
   def reserve(implicit trace: Trace): UIO[Reservation] =

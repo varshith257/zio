@@ -80,11 +80,8 @@ class SemaphoreBenchmark {
   def zioUnfairSemaphoreBenchmark(bh: Blackhole): Unit =
     unsafeRun(for {
       sem   <- Semaphore.make(5L, fair = false)
-      // fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))))))
-      fiber <-
-        ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))).timeout(3.seconds))))
-
-      _ <- fiber.join
+      fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermits(Exit.succeed(bh.consume(1))))))
+      _     <- fiber.join
     } yield ())
 
   // Single Permit Semaphore Benchmark (ZIO)

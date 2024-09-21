@@ -177,7 +177,7 @@ class UnfairSemaphore(permits: Long) extends Semaphore {
     withPermitsScoped(1L)
 
   def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
+    ZIO.acquireReleaseWith(reserve(n).timeout(3.seconds))(_.release)(_.acquire *> zio)
 
   def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
     ZIO.acquireRelease(reserve(n))(_.release).flatMap(_.acquire)

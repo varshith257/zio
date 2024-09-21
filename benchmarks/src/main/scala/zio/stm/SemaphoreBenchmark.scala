@@ -79,9 +79,12 @@ class SemaphoreBenchmark {
   @Benchmark
   def zioUnfairSemaphoreBenchmark(bh: Blackhole): Unit =
     unsafeRun(for {
-      sem   <- Semaphore.make(2L, fair = false)
-      fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))))))
-      _     <- fiber.join
+      sem   <- Semaphore.make(5L, fair = false)
+      // fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))))))
+      fiber <-
+        ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))).timeout(3.seconds))))
+
+      _ <- fiber.join
     } yield ())
 
   // Single Permit Semaphore Benchmark (ZIO)
@@ -111,7 +114,7 @@ class SemaphoreBenchmark {
   @Benchmark
   def javaSemaphoreUnfair(bh: Blackhole): Unit =
     unsafeRun(for {
-      lock <- ZIO.succeed(new JSemaphore(2, false))
+      lock <- ZIO.succeed(new JSemaphore(5, false))
       fiber <- ZIO.forkAll(List.fill(10)(repeat(ops) {
                  ZIO.succeed {
                    lock.acquire()

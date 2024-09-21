@@ -177,10 +177,25 @@ class UnfairSemaphore(permits: Long) extends Semaphore {
     withPermitsScoped(1L)
 
   def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    ZIO.acquireReleaseWith(reserve(n).timeout(3.seconds))(_.release)(_.acquire *> zio)
+    ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
+
+  // ZIO.suspendSucceed {
+  //   // First attempt to acquire non-blocking using tryAcquire
+  //   if (n == 1L) tryAcquire.flatMap {
+  //     case true  => zio                                                             // If successful, proceed with the effect
+  //     case false => ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio) // Fallback to blocking reserve
+  //   }
+  //   else ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
+  // }
 
   def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
     ZIO.acquireRelease(reserve(n))(_.release).flatMap(_.acquire)
+
+  // def tryAcquire(implicit trace: Trace): UIO[Boolean] =
+  //   ref.modify {
+  //     case Right(permits) if permits > 0 => true  -> Right(permits - 1)
+  //     case other                         => false -> other
+  //   }
 
   case class Reservation(acquire: UIO[Unit], release: UIO[Any])
 
@@ -253,6 +268,7 @@ class UnfairSemaphore(permits: Long) extends Semaphore {
 
     ref.modify(loop(n, _, ZIO.unit)).flatten
   }
+
 }
 
 class SinglePermitSemaphore extends Semaphore {

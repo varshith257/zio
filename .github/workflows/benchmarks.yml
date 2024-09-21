@@ -60,7 +60,7 @@ jobs:
         # -rf json: Output results in JSON format
         # -to 120: Timeout per iteration (120 seconds)
         # run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark.*"
-        run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark.(zioFairSemaphoreBenchmark|zioUnfairSemaphoreBenchmark)"
+        run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark.(zioFairSemaphoreBenchmark)"
         # run: sbt 'benchmarks/jmh:run zio.StreamParBenchmark.(zioBaseStream|zioStreamWithTimeout|zioStreamWithBetterTimeout|zioStreamWithBetter2Timeout|akkaBaseline|akkaTimeout)'
 
       - name: Cache benchmark data

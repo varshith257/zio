@@ -1,5 +1,5 @@
 # Benchmark workflow for ZIO Semaphore
-name: ZIO Benchmarks
+name: ZIO UnFair Semaphore Benchmarks
 
 on:
   push:

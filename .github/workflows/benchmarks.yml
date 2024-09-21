@@ -48,9 +48,8 @@ jobs:
           java-version: 17
           check-latest: true
 
-      - name: Compile project
-        run: sbt compile
-
+      # - name: Compile project
+      #   run: sbt compile
       - name: Run Semaphore Benchmarks
         # JMH options:
         # -wi 5: 5 warmup iterations
@@ -60,7 +59,7 @@ jobs:
         # -t 1: Run with 1 thread
         # -rf json: Output results in JSON format
         # -to 120: Timeout per iteration (120 seconds)
-        run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark(zioFairSemaphoreBenchmark|zioUnfairSemaphoreBenchmark|javaSemaphoreFair|javaSemaphoreUnfair"
+        run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark(zioFairSemaphoreBenchmark|zioUnfairSemaphoreBenchmark|javaSemaphoreFair|javaSemaphoreUnfair)"
         # run: sbt 'benchmarks/jmh:run zio.StreamParBenchmark.(zioBaseStream|zioStreamWithTimeout|zioStreamWithBetterTimeout|zioStreamWithBetter2Timeout|akkaBaseline|akkaTimeout)'
 
       - name: Cache benchmark data

@@ -159,146 +159,147 @@ object Semaphore {
       ref.modify(loop(n, _, ZIO.unit)).flatten
     }
   }
-}
 
-class UnfairSemaphore(permits: Long) extends Semaphore {
-  val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))(Unsafe.unsafe)
+  class UnfairSemaphore(permits: Long) extends Semaphore {
+    val ref = Ref.unsafe.make[Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]](Right(permits))(Unsafe.unsafe)
 
-  def available(implicit trace: Trace): UIO[Long] =
-    ref.get.map {
-      case Left(_)        => 0L
-      case Right(permits) => permits
-    }
+    def available(implicit trace: Trace): UIO[Long] =
+      ref.get.map {
+        case Left(_)        => 0L
+        case Right(permits) => permits
+      }
 
-  def withPermit[R, E, A](zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    withPermits(1L)(zio)
+    def withPermit[R, E, A](zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      withPermits(1L)(zio)
 
-  def withPermitScoped(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
-    withPermitsScoped(1L)
+    def withPermitScoped(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
+      withPermitsScoped(1L)
 
-  def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
+    def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
 
-  // ZIO.suspendSucceed {
-  //   // First attempt to acquire non-blocking using tryAcquire
-  //   if (n == 1L) tryAcquire.flatMap {
-  //     case true  => zio                                                             // If successful, proceed with the effect
-  //     case false => ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio) // Fallback to blocking reserve
-  //   }
-  //   else ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
-  // }
+    // ZIO.suspendSucceed {
+    //   // First attempt to acquire non-blocking using tryAcquire
+    //   if (n == 1L) tryAcquire.flatMap {
+    //     case true  => zio                                                             // If successful, proceed with the effect
+    //     case false => ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio) // Fallback to blocking reserve
+    //   }
+    //   else ZIO.acquireReleaseWith(reserve(n))(_.release)(_.acquire *> zio)
+    // }
 
-  def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
-    ZIO.acquireRelease(reserve(n))(_.release).flatMap(_.acquire)
+    def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
+      ZIO.acquireRelease(reserve(n))(_.release).flatMap(_.acquire)
 
-  def tryAcquire(implicit trace: Trace): UIO[Boolean] =
-    ref.modify {
-      case Right(permits) if permits > 0 => true  -> Right(permits - 1)
-      case other                         => false -> other
-    }
+    def tryAcquire(implicit trace: Trace): UIO[Boolean] =
+      ref.modify {
+        case Right(permits) if permits > 0 => true  -> Right(permits - 1)
+        case other                         => false -> other
+      }
 
-  case class Reservation(acquire: UIO[Unit], release: UIO[Any])
+    case class Reservation(acquire: UIO[Unit], release: UIO[Any])
 
-  def reserve(n: Long)(implicit trace: Trace): UIO[Reservation] =
-    if (n < 0)
-      ZIO.die(new IllegalArgumentException(s"Unexpected negative `$n` permits requested."))
-    else if (n == 0L)
-      ZIO.succeedNow(Reservation(ZIO.unit, ZIO.unit))
-    else
-      Promise.make[Nothing, Unit].flatMap { promise =>
-        ref.modify {
-          case Right(permits) if permits >= n =>
-            Reservation(ZIO.unit, releaseN(n)) -> Right(permits - n)
-          case Right(permits) =>
-            // Here is where the unfair behavior comes in:
-            // Instead of adding to the end of the queue, we add randomly or non-deterministically.
-            val enqueueRandomly = scala.util.Random.nextBoolean()
-            if (enqueueRandomly) {
-              Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> (n - permits)))
-            } else {
-              Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> n))
+    def reserve(n: Long)(implicit trace: Trace): UIO[Reservation] =
+      if (n < 0)
+        ZIO.die(new IllegalArgumentException(s"Unexpected negative `$n` permits requested."))
+      else if (n == 0L)
+        ZIO.succeedNow(Reservation(ZIO.unit, ZIO.unit))
+      else
+        Promise.make[Nothing, Unit].flatMap { promise =>
+          ref.modify {
+            case Right(permits) if permits >= n =>
+              Reservation(ZIO.unit, releaseN(n)) -> Right(permits - n)
+            case Right(permits) =>
+              // Here is where the unfair behavior comes in:
+              // Instead of adding to the end of the queue, we add randomly or non-deterministically.
+              val enqueueRandomly = scala.util.Random.nextBoolean()
+              if (enqueueRandomly) {
+                Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> (n - permits)))
+              } else {
+                Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> n))
+              }
+            case Left(queue) =>
+              // **Unfair behavior**: Instead of maintaining order, allow out-of-order access to permits.
+              // So, just enqueue without strict fairness.
+              val enqueueRandomly = scala.util.Random.nextBoolean()
+              if (enqueueRandomly) {
+                Reservation(promise.await, restore(promise, n)) -> Left(queue.enqueue(promise -> n))
+              } else {
+                Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> n))
+              }
+          }
+        }
+
+    def restore(promise: Promise[Nothing, Unit], n: Long)(implicit trace: Trace): UIO[Any] =
+      ref.modify {
+        case Left(queue) =>
+          queue
+            .find(_._1 == promise)
+            .fold(releaseN(n) -> Left(queue)) { case (_, permits) =>
+              releaseN(n - permits) -> Left(queue.filter(_._1 != promise))
             }
+        case Right(permits) => ZIO.unit -> Right(permits + n)
+      }.flatten
+
+    def releaseN(n: Long)(implicit trace: Trace): UIO[Any] = {
+
+      @tailrec
+      def loop(
+        n: Long,
+        state: Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long],
+        acc: UIO[Any]
+      ): (UIO[Any], Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]) =
+        state match {
+          case Right(permits) => acc -> Right(permits + n)
           case Left(queue) =>
-            // **Unfair behavior**: Instead of maintaining order, allow out-of-order access to permits.
-            // So, just enqueue without strict fairness.
-            val enqueueRandomly = scala.util.Random.nextBoolean()
-            if (enqueueRandomly) {
-              Reservation(promise.await, restore(promise, n)) -> Left(queue.enqueue(promise -> n))
+            if (queue.isEmpty) {
+              acc -> Right(n)
             } else {
-              Reservation(promise.await, restore(promise, n)) -> Left(ScalaQueue(promise -> n))
+              val randomDequeueIndex = scala.util.Random.nextInt(queue.size)
+              val (selectedPromise, remainingQueue) =
+                (queue(randomDequeueIndex), queue.patch(randomDequeueIndex, Nil, 1))
+              if (n > selectedPromise._2)
+                loop(n - selectedPromise._2, Left(remainingQueue), acc *> selectedPromise._1.succeed(()))
+              else if (n == selectedPromise._2)
+                (acc *> selectedPromise._1.succeed(())) -> Left(remainingQueue)
+              else
+                acc -> Left((selectedPromise._1 -> (selectedPromise._2 - n)) +: remainingQueue)
             }
         }
-      }
 
-  def restore(promise: Promise[Nothing, Unit], n: Long)(implicit trace: Trace): UIO[Any] =
-    ref.modify {
-      case Left(queue) =>
-        queue
-          .find(_._1 == promise)
-          .fold(releaseN(n) -> Left(queue)) { case (_, permits) =>
-            releaseN(n - permits) -> Left(queue.filter(_._1 != promise))
-          }
-      case Right(permits) => ZIO.unit -> Right(permits + n)
-    }.flatten
-
-  def releaseN(n: Long)(implicit trace: Trace): UIO[Any] = {
-
-    @tailrec
-    def loop(
-      n: Long,
-      state: Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long],
-      acc: UIO[Any]
-    ): (UIO[Any], Either[ScalaQueue[(Promise[Nothing, Unit], Long)], Long]) =
-      state match {
-        case Right(permits) => acc -> Right(permits + n)
-        case Left(queue) =>
-          if (queue.isEmpty) {
-            acc -> Right(n)
-          } else {
-            val randomDequeueIndex                = scala.util.Random.nextInt(queue.size)
-            val (selectedPromise, remainingQueue) = (queue(randomDequeueIndex), queue.patch(randomDequeueIndex, Nil, 1))
-            if (n > selectedPromise._2)
-              loop(n - selectedPromise._2, Left(remainingQueue), acc *> selectedPromise._1.succeed(()))
-            else if (n == selectedPromise._2)
-              (acc *> selectedPromise._1.succeed(())) -> Left(remainingQueue)
-            else
-              acc -> Left((selectedPromise._1 -> (selectedPromise._2 - n)) +: remainingQueue)
-          }
-      }
-
-    ref.modify(loop(n, _, ZIO.unit)).flatten
-  }
-
-}
-
-class SinglePermitSemaphore extends Semaphore {
-  private val locked = Ref.unsafe.make(false)(Unsafe.unsafe)
-
-  def available(implicit trace: Trace): UIO[Long] =
-    locked.get.map(locked => if (locked) 0L else 1L)
-
-  def withPermit[R, E, A](zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    ZIO.acquireReleaseWith(reserve)(_.release)(_.acquire *> zio)
-
-  def withPermitScoped(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
-    ZIO.acquireRelease(reserve)(_.release).flatMap(_.acquire)
-
-  def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
-    if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
-    else withPermit(zio)
-
-  def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
-    if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
-    else withPermitScoped
-
-  case class Reservation(acquire: UIO[Unit], release: UIO[Any])
-
-  def reserve(implicit trace: Trace): UIO[Reservation] =
-    locked.modify {
-      case false => Reservation(ZIO.unit, release)   -> true
-      case true  => Reservation(ZIO.never, ZIO.unit) -> true
+      ref.modify(loop(n, _, ZIO.unit)).flatten
     }
 
-  def release(implicit trace: Trace): UIO[Unit] =
-    locked.set(false)
+  }
+
+  class SinglePermitSemaphore extends Semaphore {
+    private val locked = Ref.unsafe.make(false)(Unsafe.unsafe)
+
+    def available(implicit trace: Trace): UIO[Long] =
+      locked.get.map(locked => if (locked) 0L else 1L)
+
+    def withPermit[R, E, A](zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      ZIO.acquireReleaseWith(reserve)(_.release)(_.acquire *> zio)
+
+    def withPermitScoped(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
+      ZIO.acquireRelease(reserve)(_.release).flatMap(_.acquire)
+
+    def withPermits[R, E, A](n: Long)(zio: ZIO[R, E, A])(implicit trace: Trace): ZIO[R, E, A] =
+      if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
+      else withPermit(zio)
+
+    def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
+      if (n != 1L) ZIO.dieMessage("SinglePermitSemaphore only supports exactly 1 permit")
+      else withPermitScoped
+
+    case class Reservation(acquire: UIO[Unit], release: UIO[Any])
+
+    def reserve(implicit trace: Trace): UIO[Reservation] =
+      locked.modify {
+        case false => Reservation(ZIO.unit, release)   -> true
+        case true  => Reservation(ZIO.never, ZIO.unit) -> true
+      }
+
+    def release(implicit trace: Trace): UIO[Unit] =
+      locked.set(false)
+  }
 }

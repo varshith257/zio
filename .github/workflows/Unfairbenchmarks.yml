@@ -1,0 +1,86 @@
+# Benchmark workflow for ZIO Semaphore
+name: ZIO UnFair Semaphore Benchmarks
+
+on:
+  push:
+    branches:
+      - main
+      - series/2.x
+
+  pull_request:
+    types: [opened, reopened, synchronize]
+    branches-ignore:
+      - gh-pages
+    paths:
+      - "benchmarks/src/main/scala/zio/stm/SemaphoreBenchmark.scala" # Only trigger if SemaphoreBenchmark changes
+      - "core/shared/src/main/scala/zio/Semaphore.scala"
+      - "core/shared/src/main/scala/zio/stm/TSemaphore.scala" # Optional: Include TSemaphore changes too
+
+    # Prevent concurrent builds on the same branch
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref == format('refs/heads/{0}', github.event.repository.default_branch) && github.run_id || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  # Allow access to GitHub pages and content updates
+  deployments: write
+  contents: write
+
+jobs:
+  benchmark:
+    name: Run Semaphore Benchmark
+    runs-on: ubuntu-latest
+    if: github.event.pull_request
+    env:
+      JDK_JAVA_OPTIONS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # JDK_JAVA_OPTIONS is _the_ env. variable to use for modern Java
+      SBT_OPTS: -XX:+PrintCommandLineFlags -Xms6G -Xmx6G -Xss4M -XX:+UseG1GC -XX:ReservedCodeCacheSize=512M -XX:NonProfiledCodeHeapSize=256M # Needed for sbt
+      NODE_OPTIONS: --max_old_space_size=6144
+    steps:
+      - name: Checkout current branch
+        uses: actions/checkout@v4.1.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup Java
+        uses: actions/setup-java@v4.2.1
+        with:
+          distribution: temurin
+          java-version: 17
+          check-latest: true
+
+      # - name: Compile project
+      #   run: sbt compile
+      - name: Run Unfair Semaphore Benchmarks
+        # JMH options:
+        # -wi 5: 5 warmup iterations
+        # -i 5: 5 benchmark iterations
+        # -r 1: Minimum time per measurement iteration (1 second)
+        # -w 1: Minimum time per warmup iteration (1 second)
+        # -t 1: Run with 1 thread
+        # -rf json: Output results in JSON format
+        # -to 120: Timeout per iteration (120 seconds)
+        # run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark.*"
+        run: sbt "benchmarks/jmh:run zio.stm.SemaphoreBenchmark.(zioUnfairSemaphoreBenchmark)"
+        # run: sbt 'benchmarks/jmh:run zio.StreamParBenchmark.(zioBaseStream|zioStreamWithTimeout|zioStreamWithBetterTimeout|zioStreamWithBetter2Timeout|akkaBaseline|akkaTimeout)'
+
+      - name: Cache benchmark data
+        uses: actions/cache@v3
+        with:
+          path: ./cache
+          key: ${{ runner.os }}-benchmark
+
+      - name: Upload Benchmark Results
+        uses: benchmark-action/github-action-benchmark@v1.20.3
+        with:
+          name: Semaphore JMH Benchmark
+          tool: "jmh"
+          output-file-path: benchmarks/target/jmh-result.json
+          # Access token to push updates
+          # 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
+          github-token: ${{ secrets.MY_GITHUB_TOKEN }}
+          # Automatically push and deploy to GitHub pages branch for benchmarking results
+          auto-push: true
+          alert-threshold: "200%" # Alert if performance changes by more than 200%
+          comment-on-alert: true # Post a comment on the PR if there's a performance alert
+          fail-on-alert: true # Fail the workflow if there's a performance regression
+          alert-comment-cc-users: "@varshith257"

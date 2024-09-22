@@ -191,11 +191,11 @@ class UnfairSemaphore(permits: Long) extends Semaphore {
   def withPermitsScoped(n: Long)(implicit trace: Trace): ZIO[Scope, Nothing, Unit] =
     ZIO.acquireRelease(reserve(n))(_.release).flatMap(_.acquire)
 
-  // def tryAcquire(implicit trace: Trace): UIO[Boolean] =
-  //   ref.modify {
-  //     case Right(permits) if permits > 0 => true  -> Right(permits - 1)
-  //     case other                         => false -> other
-  //   }
+  def tryAcquire(implicit trace: Trace): UIO[Boolean] =
+    ref.modify {
+      case Right(permits) if permits > 0 => true  -> Right(permits - 1)
+      case other                         => false -> other
+    }
 
   case class Reservation(acquire: UIO[Unit], release: UIO[Any])
 

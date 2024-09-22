@@ -71,7 +71,7 @@ class SemaphoreBenchmark {
   def zioFairSemaphoreBenchmark(bh: Blackhole): Unit =
     unsafeRun(for {
       sem   <- Semaphore.make(permits.toLong, fair = true)
-      fiber <- ZIO.forkAll(List.fill(fibers)(repeat(ops)(sem.withPermit(Exit.succeed(bh.consume(1))))))
+      fiber <- ZIO.forkAll(List.fill(fibers)(repeat(ops)(sem.withPermits(permits.toLong)(Exit.succeed(bh.consume(1))))))
       _     <- fiber.join
     } yield ())
 
@@ -79,9 +79,20 @@ class SemaphoreBenchmark {
   @Benchmark
   def zioUnfairSemaphoreBenchmark(bh: Blackhole): Unit =
     unsafeRun(for {
-      sem   <- Semaphore.make(5L, fair = false)
-      fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermits(5L)(Exit.succeed(bh.consume(1))))))
-      _     <- fiber.join
+      sem <- Semaphore.make(5L, fair = false)
+      // fiber <- ZIO.forkAll(List.fill(10)(repeat(ops)(sem.withPermits(5L)(Exit.succeed(bh.consume(1))))))
+      fiber <- ZIO.forkAll(
+                 List.fill(10)(
+                   repeat(ops) {
+                     sem.tryAcquire.flatMap {
+                       case true => Exit.succeed(bh.consume(1)) // Permits acquired, proceed with task
+                       case false =>
+                         sem.withPermits(5L)(ZIO.succeed(bh.consume(1))) // Fallback to withPermits if tryAcquire fails
+                     }
+                   }
+                 )
+               )
+      _ <- fiber.join
     } yield ())
 
   // Single Permit Semaphore Benchmark (ZIO)

@@ -320,6 +320,16 @@ sealed abstract class ZLayer[-RIn, +E, +ROut] { self =>
     }
 
   /**
+   * Runs this layer by composing it with the specified layers for dependencies.
+   * Returns an effect that produces `Unit`, assuming the layer outputs `Unit`.
+   */
+
+  final def runWith[RIn1 <: RIn](layers: ZLayer[RIn1, Nothing, RIn]*)(implicit trace: Trace): ZIO[RIn1, E, Unit] = {
+    val composedLayer = layers.reduce(_ ++ _)
+    (composedLayer >>> self).build.unit
+  }
+
+  /**
    * Performs the specified effect if this layer succeeds.
    */
   final def tap[RIn1 <: RIn, E1 >: E](f: ZEnvironment[ROut] => ZIO[RIn1, E1, Any])(implicit

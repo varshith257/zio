@@ -590,7 +590,7 @@ object ZLayerSpec extends ZIOBaseSpec {
           layer2   = makeLayer2(ref)
           layer3   = makeLayer3(ref)
           appLayer = (layer1 ++ layer2 ++ layer3).unit
-          _       <- appLayer.runWith(layer1, layer2, layer3)
+          _       <- ZIO.scoped(appLayer.runWith(layer1, layer2, layer3))
           actual  <- ref.get
         } yield assert(actual)(equalTo(Vector(acquire1, acquire2, acquire3, release3, release2, release1)))
       }

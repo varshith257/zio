@@ -326,10 +326,7 @@ sealed abstract class ZLayer[-RIn, +E, +ROut] { self =>
   final def runWith[RIn0 <: RIn: Tag](
     layers: ZLayer[Any, Nothing, RIn0]*
   )(implicit trace: Trace): ZIO[Scope, E, Unit] = {
-    // Combine all input layers into a single layer of type RIn
     val composedLayer: ZLayer[Any, Nothing, RIn] = layers.reduce(_ >>> _).asInstanceOf[ZLayer[Any, Nothing, RIn]]
-
-    // Scope the combined layer and provide it to the current ZLayer, then return Unit
     ZIO.scoped((composedLayer >>> self).build.unit)
   }
 

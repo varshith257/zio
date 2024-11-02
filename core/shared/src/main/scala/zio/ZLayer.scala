@@ -323,11 +323,11 @@ sealed abstract class ZLayer[-RIn, +E, +ROut] { self =>
    * Runs this layer by composing it with the specified layers for dependencies.
    * Returns an effect that produces `Unit`, assuming the layer outputs `Unit`.
    */
-  final def runWith[RIn0 <: RIn: Tag](
+  final def runWith[RIn0 <: RIn: Tag, RIn: Tag](
     layers: ZLayer[RIn0 with Scope, Nothing, RIn]*
   )(implicit trace: Trace): ZIO[RIn0 with Scope, E, Unit] = {
     val composedLayer = layers.reduce(_ ++ _)
-    ZIO.scoped((composedLayer >>> self).build.unit)
+    (composedLayer >>> self).build.unit
   }
 
   /**

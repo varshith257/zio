@@ -28,8 +28,8 @@ object TestArrowSpec extends ZIOBaseSpec {
     )
 
   private def izumiTagTest[A: Tag](exp: LightTypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
-    test(s"LightTypeTag test for ${exp.polyShow(_.prefixAll)}") {
-      assertTrue(LightTypeTag.usingTag[A].tag == exp)
+    test(s"LightTypeTag test for ${exp.repr}") {
+      assertTrue(Tag[A].tag == exp)
     }
 
   def spec =

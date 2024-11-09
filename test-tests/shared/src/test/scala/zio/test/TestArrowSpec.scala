@@ -1,5 +1,8 @@
 package zio.test
 
+import izumi.reflect.Tag
+import izumi.reflect.macrortti.TypeTag
+
 object TestArrowSpec extends ZIOBaseSpec {
 
   import TestArrow._
@@ -25,8 +28,8 @@ object TestArrowSpec extends ZIOBaseSpec {
     )
 
   private def izumiTagTest[A: Tag](exp: TypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
-    test(s"TypeTag test for ${exp.toString}") {
-      assertTrue(TypeTag.usingTag[A].tag == exp)
+    test(s"TypeTag test for ${exp.polyShow(_.prefixAll)}") {
+      assertTrue(TypeTag[A].tag == exp)
     }
 
   def spec =

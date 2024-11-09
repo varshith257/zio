@@ -169,7 +169,7 @@ object TestArrowSpec extends ZIOBaseSpec {
         }
       ),
       suite("LightTypeTag rendering")(
-        izumiTagTest[String](LightTypeTag.TypeRef("java.lang.String"))
+        izumiTagTest[String](LightTypeTag.ref("java.lang.String"))
       )
     )
 

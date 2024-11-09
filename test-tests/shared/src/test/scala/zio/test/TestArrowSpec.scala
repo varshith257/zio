@@ -1,5 +1,8 @@
 package zio.test
 
+import izumi.reflect.Tag
+import izumi.reflect.macrortti.LightTypeTag
+
 object TestArrowSpec extends ZIOBaseSpec {
 
   import TestArrow._
@@ -24,6 +27,14 @@ object TestArrowSpec extends ZIOBaseSpec {
       genFailureDetails
     )
 
+  private def izumiTagTest[A: Tag](expectedTag: LightTypeTag): Spec[Any, TestFailure[Any]] =
+    test(s"LightTypeTag test for ${expectedTag.repr}") {
+      assertTrue(Tag[A].tag == expectedTag)
+    }
+
+  // nested types to replicate deep structure
+  trait Stage1 { trait Stage2[T] }
+  type ComplexType = Stage1#Stage2[String]
   def spec =
     suite("TestArrowSpec")(
       suite(".meta")(
@@ -133,6 +144,35 @@ object TestArrowSpec extends ZIOBaseSpec {
             meta.meta(genFailureDetails = genFailureDetails2).asInstanceOf[Meta[Any, Nothing]].genFailureDetails
           assertTrue(res1.map(_.iterations == 1).getOrElse(false) && res2.map(_.iterations == 2).getOrElse(false))
         }
+      ),
+      suite("Span substring bounds")(
+        test("correctly handles valid span bounds within string length") {
+          val span = Span(0, 3)
+          assertTrue(span.substring("foo bar baz") == "foo")
+        },
+        test("clamps start when it is out of bounds") {
+          val span = Span(-20, 5)
+          assertTrue(span.substring("foo bar baz") == "foo b")
+        },
+        test("clamps end when it exceeds string length") {
+          val span = Span(0, 100)
+          assertTrue(span.substring("foo") == "foo")
+        },
+        test("clamps both start and end when both are out of bounds") {
+          val span = Span(-50, 200)
+          assertTrue(span.substring("baz") == "baz")
+        },
+        test("returns empty string when start equals end") {
+          val span = Span(3, 3)
+          assertTrue(span.substring("foo bar baz") == "")
+        },
+        test("returns empty string when start is greater than end") {
+          val span = Span(10, 5)
+          assertTrue(span.substring("foo bar baz") == "")
+        }
+      ),
+      suite("LightTypeTag rendering")(
+        izumiTagTest[ComplexType](Tag[ComplexType].tag)
       )
     )
 

@@ -27,11 +27,14 @@ object TestArrowSpec extends ZIOBaseSpec {
       genFailureDetails
     )
 
-  private def izumiTagTest[A: Tag](exp: LightTypeTag): Spec[Any, TestFailure[Any]] =
-    test(s"LightTypeTag test for ${exp.repr}") {
-      assertTrue(Tag[A].tag == exp)
+  private def izumiTagTest[A: Tag](expectedTag: LightTypeTag): Spec[Any, TestFailure[Any]] =
+    test(s"LightTypeTag test for ${expectedTag.repr}") {
+      assertTrue(Tag[A].tag == expectedTag)
     }
 
+  // nested types to replicate deep structure
+  trait Stage1 { trait Stage2[T] }
+  type ComplexType = Stage1#Stage2[String]
   def spec =
     suite("TestArrowSpec")(
       suite(".meta")(
@@ -169,7 +172,7 @@ object TestArrowSpec extends ZIOBaseSpec {
         }
       ),
       suite("LightTypeTag rendering")(
-        izumiTagTest[String](LightTypeTag.ref("java.lang.String"))
+        izumiTagTest[ComplexType](Tag[ComplexType].tag)
       )
     )
 

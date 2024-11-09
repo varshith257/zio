@@ -24,6 +24,11 @@ object TestArrowSpec extends ZIOBaseSpec {
       genFailureDetails
     )
 
+  private def izumiTagTest[A: Tag](exp: TypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
+    test(s"TypeTag test for ${exp.toString}") {
+      assertTrue(TypeTag.usingTag[A].tag == exp)
+    }
+
   def spec =
     suite("TestArrowSpec")(
       suite(".meta")(
@@ -159,6 +164,9 @@ object TestArrowSpec extends ZIOBaseSpec {
           val span = Span(4, 2)
           assertTrue(span.substring("foo bar baz") == "")
         }
+      ),
+      suite("TypeTag rendering")(
+        izumiTagTest[String](TypeTag.TypeRef("java.lang.String"))
       )
     )
 

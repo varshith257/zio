@@ -1,7 +1,6 @@
 package zio.test
 
-import izumi.reflect.Tag
-import izumi.reflect.macrortti.TypeTag
+import izumi.reflect.{Tag, TypeTag}
 
 object TestArrowSpec extends ZIOBaseSpec {
 

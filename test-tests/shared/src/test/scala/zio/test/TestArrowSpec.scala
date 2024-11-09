@@ -27,7 +27,7 @@ object TestArrowSpec extends ZIOBaseSpec {
       genFailureDetails
     )
 
-  private def izumiTagTest[A: Tag](exp: LightTypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
+  private def izumiTagTest[A: Tag](exp: LightTypeTag): Spec[Any, TestFailure[Any]] =
     test(s"LightTypeTag test for ${exp.repr}") {
       assertTrue(Tag[A].tag == exp)
     }

@@ -1,6 +1,7 @@
 package zio.test
 
-import izumi.reflect.{Tag, TypeTag}
+import izumi.reflect.Tag
+import izumi.reflect.macrortti.LightTypeTag
 
 object TestArrowSpec extends ZIOBaseSpec {
 
@@ -26,9 +27,9 @@ object TestArrowSpec extends ZIOBaseSpec {
       genFailureDetails
     )
 
-  private def izumiTagTest[A: Tag](exp: TypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
-    test(s"TypeTag test for ${exp.polyShow(_.prefixAll)}") {
-      assertTrue(TypeTag.usingTag[A].tag == exp)
+  private def izumiTagTest[A: Tag](exp: LightTypeTag.TypeRef): Spec[Any, TestFailure[Any]] =
+    test(s"LightTypeTag test for ${exp.polyShow(_.prefixAll)}") {
+      assertTrue(LightTypeTag.usingTag[A].tag == exp)
     }
 
   def spec =
@@ -167,8 +168,8 @@ object TestArrowSpec extends ZIOBaseSpec {
           assertTrue(span.substring("foo bar baz") == "")
         }
       ),
-      suite("TypeTag rendering")(
-        izumiTagTest[String](TypeTag.TypeRef("java.lang.String"))
+      suite("LightTypeTag rendering")(
+        izumiTagTest[String](LightTypeTag.TypeRef("java.lang.String"))
       )
     )
 

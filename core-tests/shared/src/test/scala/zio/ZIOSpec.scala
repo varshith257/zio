@@ -4486,7 +4486,7 @@ object ZIOSpec extends ZIOBaseSpec {
         for {
           ref    <- Ref.make(false)
           latch  <- Promise.make[Nothing, Unit]
-          _      <- ZIO.succeed(42).onDone(_ => ZIO.unit, _ => ref.set(true) *> promise.succeed(()))
+          _      <- ZIO.succeed(42).onDone(_ => ZIO.unit, _ => ref.set(true) *> latch.succeed(()))
           _      <- latch.await
           result <- ref.get
         } yield assert(result)(isTrue)
@@ -4497,7 +4497,7 @@ object ZIOSpec extends ZIOBaseSpec {
           latch <- Promise.make[Nothing, Unit]
           _ <- ZIO
                  .fail("Error")
-                 .onDone(_ => ref.set(true) *> promise.succeed(()), _ => ZIO.unit)
+                 .onDone(_ => ref.set(true) *> latch.succeed(()), _ => ZIO.unit)
                  .catchAll(_ => ZIO.unit)
           _      <- latch.await
           result <- ref.get
@@ -4507,7 +4507,7 @@ object ZIOSpec extends ZIOBaseSpec {
         for {
           ref    <- Ref.make(false)
           latch  <- Promise.make[Nothing, Unit]
-          _      <- ZIO.succeed(42).onDoneCause(_ => ZIO.unit, _ => ref.set(true) *> promise.succeed(()))
+          _      <- ZIO.succeed(42).onDoneCause(_ => ZIO.unit, _ => ref.set(true) *> latch.succeed(()))
           _      <- latch.await
           result <- ref.get
         } yield assert(result)(isTrue)
@@ -4518,7 +4518,7 @@ object ZIOSpec extends ZIOBaseSpec {
           latch <- Promise.make[Nothing, Unit]
           _ <- ZIO
                  .fail("Error")
-                 .onDoneCause(_ => ref.set(true) *> promise.succeed(()), _ => ZIO.unit)
+                 .onDoneCause(_ => ref.set(true) *> latch.succeed(()), _ => ZIO.unit)
                  .catchAll(_ => ZIO.unit)
           _      <- latch.await
           result <- ref.get

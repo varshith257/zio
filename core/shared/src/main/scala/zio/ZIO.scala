@@ -1048,8 +1048,8 @@ sealed trait ZIO[-R, +E, +A]
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
     onExit {
-      case Exit.Success(value) => success(value)
-      case Exit.Failure(cause) => cause.failureOrCause.fold(error, _ => ZIO.unit)
+      case Exit.Success(value) => success(value).as(())
+      case Exit.Failure(cause) => cause.failureOrCause.fold(error, _ => ZIO.unit).as(())
     }
 
   final def onDoneCause[R1 <: R](
@@ -1057,8 +1057,8 @@ sealed trait ZIO[-R, +E, +A]
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
     onExit {
-      case Exit.Success(value) => success(value)
-      case Exit.Failure(cause) => error(cause)
+      case Exit.Success(value) => success(value).as(())
+      case Exit.Failure(cause) => error(cause).as(())
     }
 
   /**

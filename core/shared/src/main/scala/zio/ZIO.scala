@@ -1390,7 +1390,7 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
-  ZIO.scoped { parentScope: Scope =>
+  ZIO.scoped[R1] {
     (self.exit race that.exit).flatMap { exitResult =>
       exitResult match {
         case Exit.Success(winningValue) =>

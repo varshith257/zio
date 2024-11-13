@@ -1048,24 +1048,24 @@ sealed trait ZIO[-R, +E, +A]
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
     onExit {
-      case Exit.Success(value) => success(value).unit // success case returns Unit
+      case Exit.Success(value) => success(value).unit
       case Exit.Failure(cause) =>
         cause.failureOrCause
           .fold(
-            error,        // handle error
-            _ => ZIO.unit // handle cause failure without error (returns ZIO.unit)
+            error,
+            _ => ZIO.unit
           )
-          .unit // failure case also returns Unit
-    }
+          .unit
+    }.as(())
 
   final def onDoneCause[R1 <: R](
     error: Cause[E] => ZIO[R1, Nothing, Any],
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
     onExit {
-      case Exit.Success(value) => success(value).unit // success case returns Unit
-      case Exit.Failure(cause) => error(cause).unit   // failure case returns Unit
-    }
+      case Exit.Success(value) => success(value).unit
+      case Exit.Failure(cause) => error(cause).unit
+    }.as(())
 
   /**
    * Runs the specified effect if this effect fails, providing the error to the

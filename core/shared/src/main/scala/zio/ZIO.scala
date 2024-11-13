@@ -1056,7 +1056,7 @@ sealed trait ZIO[-R, +E, +A]
             _ => ZIO.unit
           )
           .unit
-    }.as(())
+    }.orDie.as(())
 
   final def onDoneCause[R1 <: R](
     error: Cause[E] => ZIO[R1, Nothing, Any],
@@ -1065,7 +1065,7 @@ sealed trait ZIO[-R, +E, +A]
     onExit {
       case Exit.Success(value) => success(value).unit
       case Exit.Failure(cause) => error(cause).unit
-    }.as(())
+    }.orDie.as(())
 
   /**
    * Runs the specified effect if this effect fails, providing the error to the

@@ -4498,7 +4498,6 @@ object ZIOSpec extends ZIOBaseSpec {
           _ <- ZIO
                  .fail("Error")
                  .onDone(_ => ref.set(true) *> latch.succeed(()), _ => ZIO.unit)
-                 .catchAll(_ => ZIO.unit)
           _      <- latch.await
           result <- ref.get
         } yield assert(result)(isTrue)
@@ -4519,7 +4518,6 @@ object ZIOSpec extends ZIOBaseSpec {
           _ <- ZIO
                  .fail("Error")
                  .onDoneCause(_ => ref.set(true) *> latch.succeed(()), _ => ZIO.unit)
-                 .catchAll(_ => ZIO.unit)
           _      <- latch.await
           result <- ref.get
         } yield assert(result)(isTrue)

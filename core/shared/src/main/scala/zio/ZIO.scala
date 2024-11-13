@@ -1047,19 +1047,19 @@ sealed trait ZIO[-R, +E, +A]
     error: E => ZIO[R1, Nothing, Any],
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
-  onExit {
-    case Exit.Success(value) => success(value)
-    case Exit.Failure(cause) => cause.failureOrCause.fold(error, _ => ZIO.unit)
-  }
+    onExit {
+      case Exit.Success(value) => success(value)
+      case Exit.Failure(cause) => cause.failureOrCause.fold(error, _ => ZIO.unit)
+    }
 
   final def onDoneCause[R1 <: R](
     error: Cause[E] => ZIO[R1, Nothing, Any],
     success: A => ZIO[R1, Nothing, Any]
   )(implicit trace: Trace): ZIO[R1, Nothing, Unit] =
-  onExit {
-    case Exit.Success(value) => success(value)
-    case Exit.Failure(cause) => error(cause)
-  }
+    onExit {
+      case Exit.Success(value) => success(value)
+      case Exit.Failure(cause) => error(cause)
+    }
 
   /**
    * Runs the specified effect if this effect fails, providing the error to the

@@ -1385,13 +1385,15 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
+    if (that == ZIO.never) self // Directly return `self` if `that` is effectively `Nil`
+    else
     ZIO.uninterruptibleMask { restore =>
       for {
         leftFiber  <- self.fork
         rightFiber <- that.fork
         result <- restore(leftFiber.await race rightFiber.await).flatMap {
                     case Exit.Success(winningValue) =>
-                      val winningFiber = if (leftFiber.await.map(_.isSuccess)) leftFiber else rightFiber
+                      val winningFiber = if (winningValue == leftFiber.await) leftFiber else rightFiber
                       winningFiber.inheritAll.as(winningValue)
                     case Exit.Failure(failureCause) =>
                       ZIO.failCause(failureCause)

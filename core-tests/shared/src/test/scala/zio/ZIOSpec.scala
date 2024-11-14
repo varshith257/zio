@@ -3127,7 +3127,7 @@ object ZIOSpec extends ZIOBaseSpec {
         for {
           promise <- Promise.make[Nothing, Int]
           effect   = promise.succeed(42).as(99)
-          result  <- effect.raceFirst(Nil)
+          result  <- effect.raceFirst(ZIO.never)
           value   <- promise.await
         } yield assert(result)(equalTo(99)) && assert(value)(equalTo(42))
       },

@@ -1385,18 +1385,19 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
-  ZIO.uninterruptibleMask { restore =>
-    for {
-      leftFiber  <- self.fork
-      rightFiber <- that.fork
-      result <- restore(leftFiber.await race rightFiber.await).flatMap {
-                  case Exit.Success(winningValue) =>
-                    (if (leftFiber.isDone) leftFiber else rightFiber).inheritAll.as(winningValue)
-                  case Exit.Failure(failureCause) =>
-                    ZIO.failCause(failureCause)
-                }
-    } yield result
-  }
+    ZIO.uninterruptibleMask { restore =>
+      for {
+        leftFiber  <- self.fork
+        rightFiber <- that.fork
+        result <- restore(leftFiber.await race rightFiber.await).flatMap {
+                    case Exit.Success(winningValue) =>
+                      (if (leftFiber.exit.map(_.succeeded)) leftFiber else rightFiber).inheritAll
+                        .as(winningValue)
+                    case Exit.Failure(failureCause) =>
+                      ZIO.failCause(failureCause)
+                  }
+      } yield result
+    }
 
   @deprecated("use raceFirst", "2.0.7")
   final def raceFirstAwait[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit

@@ -3138,7 +3138,7 @@ object ZIOSpec extends ZIOBaseSpec {
           acquire                 = backgroundBlockingStuff.fork
           release                 = ZIO.succeed(isRunning.set(false))
           eff                     = ZIO.acquireRelease(acquire)(_ => release)
-          _                      <- ZIO.scoped(ZIO.raceFirst(eff, ZIO.never))
+          _                      <- ZIO.scoped(Chunk(ZIO.succeed(ZIO.raceFirst(eff, ZIO.never))))
         } yield assertCompletes
       } @@ timeout(10.seconds),
       test("mergeAll") {

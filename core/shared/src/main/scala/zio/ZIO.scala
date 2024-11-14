@@ -1393,9 +1393,8 @@ sealed trait ZIO[-R, +E, +A]
           rightFiber <- that.fork
           result <- restore(leftFiber.await race rightFiber.await).flatMap {
                       case Exit.Success(winningValue) =>
-                        val winningFiber = if (winningValue == ()) leftFiber else rightFiber
-                        val losingFiber = if (winningFiber eq leftFiber) rightFiber else leftFiber
-                        losingFiber.interrupt.as(winningValue) *>
+                        val (winningFiber, losingFiber) = if (winningValue == leftFiber.await) (leftFiber, rightFiber) else (rightFiber, leftFiber)
+                        losingFiber.interrupt *>
                         winningFiber.inheritAll.as(winningValue)
                       case Exit.Failure(failureCause) =>
                         ZIO.failCause(failureCause)

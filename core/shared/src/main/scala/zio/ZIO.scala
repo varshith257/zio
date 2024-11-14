@@ -1389,19 +1389,19 @@ sealed trait ZIO[-R, +E, +A]
     if (that == ZIO.never) self
     else
       self.raceWith(that)(
-      (leftExit, rightFiber) =>
-        leftExit match {
+        (leftExit, rightFiber) =>
+          leftExit match {
             case Exit.Success(value) =>
-            rightFiber.interrupt *> ZIO.succeed(value)
+              rightFiber.interrupt *> ZIO.succeed(value)
             case Exit.Failure(cause) =>
-            rightFiber.interrupt *> ZIO.failCause(cause)
+              rightFiber.interrupt *> ZIO.failCause(cause)
           },
-      (rightExit, leftFiber) =>
-        rightExit match {
+        (rightExit, leftFiber) =>
+          rightExit match {
             case Exit.Success(value) =>
-            leftFiber.interrupt *> ZIO.succeed(value)
+              leftFiber.interrupt *> ZIO.succeed(value)
             case Exit.Failure(cause) =>
-            leftFiber.interrupt *> ZIO.failCause(cause)
+              leftFiber.interrupt *> ZIO.failCause(cause)
           }
       )
 

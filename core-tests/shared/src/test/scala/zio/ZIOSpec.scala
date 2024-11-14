@@ -3121,6 +3121,24 @@ object ZIOSpec extends ZIOBaseSpec {
           b      <- effect.await
         } yield assert(b)(equalTo(42))
       } @@ zioTag(interruption),
+      test("raceFirst with Nil behaves identically to the eff") {
+        for {
+          promise <- Promise.make[Nothing, Int]
+          effect   = promise.succeed(42).as(99)
+          result  <- effect.raceFirst(ZIO.never)
+          value   <- promise.await
+        } yield assert(result)(equalTo(99)) && assert(value)(equalTo(42))
+      },
+      test("raceFirst always calls finalizers even with blocking operation") {
+        for {
+          isRunning              <- ZIO.succeed(new AtomicBoolean(true))
+          backgroundBlockingStuff = ZIO.attemptBlocking(while (isRunning.get()) {})
+          acquire                 = backgroundBlockingStuff.fork
+          release                 = ZIO.succeed(isRunning.set(false))
+          eff                     = ZIO.acquireRelease(acquire)(_ => release)
+          _                      <- ZIO.scoped(ZIO.raceFirst(eff, ZIO.never))
+        } yield assertCompletes
+      } @@ timeout(10.seconds),
       test("mergeAll") {
         val io = ZIO.mergeAll(List("a", "aa", "aaa", "aaaa").map(ZIO.succeed[String](_)))(0)((b, a) => b + a.length)
 

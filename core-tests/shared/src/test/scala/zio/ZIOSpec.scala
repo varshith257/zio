@@ -3127,7 +3127,7 @@ object ZIOSpec extends ZIOBaseSpec {
         for {
           promise <- Promise.make[Nothing, Int]
           effect   = promise.succeed(42).as(99)
-          result  <- effect.raceFirst(ZIO.never)
+          result  <- effect.raceFirst(Nil)
           value   <- promise.await
         } yield assert(result)(equalTo(99)) && assert(value)(equalTo(42))
       },
@@ -3138,7 +3138,7 @@ object ZIOSpec extends ZIOBaseSpec {
           acquire                 = backgroundBlockingStuff.fork
           release                 = ZIO.succeed(isRunning.set(false))
           eff                     = ZIO.acquireRelease(acquire)(_ => release)
-          _                      <- ZIO.scoped(ZIO.raceFirst(eff, Nil))
+          _                      <- ZIO.scoped(ZIO.succeed(ZIO.raceFirst(eff, Nil)))
         } yield assertCompletes
       } @@ timeout(10.seconds),
       test("mergeAll") {

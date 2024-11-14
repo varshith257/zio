@@ -1387,20 +1387,22 @@ sealed trait ZIO[-R, +E, +A]
   ): ZIO[R1, E1, A1] =
     if (that == ZIO.never) self // Directly return `self` if `that` is effectively `Nil`
     else
-      ZIO.uninterruptibleMask { restore =>
-        for {
-          leftFiber  <- self.fork
-          rightFiber <- that.fork
-          result <- restore(leftFiber.await race rightFiber.await).flatMap {
-                      case Exit.Success(winningValue) =>
-                        val (winningFiber, losingFiber) = if (winningValue == leftFiber.await) (leftFiber, rightFiber) else (rightFiber, leftFiber)
-                        losingFiber.interrupt *>
-                        winningFiber.inheritAll.as(winningValue)
-                      case Exit.Failure(failureCause) =>
-                        ZIO.failCause(failureCause)
-                    }
-        } yield result
-      }
+    self.raceFibersWith(that)(
+      (winner, loser) => // left fiber wins
+        winner.await.flatMap {
+          case Exit.Success(value) =>
+            loser.interrupt *> winner.inheritAll.as(value) // Interrupt loser and inherit winner's scope
+          case Exit.Failure(cause) =>
+            loser.join.mapErrorCause(cause && _) // Combine causes if left fails
+        },
+      (winner, loser) => // right fiber wins
+        winner.await.flatMap {
+          case Exit.Success(value) =>
+            loser.interrupt *> winner.inheritAll.as(value) // Interrupt loser and inherit winner's scope
+          case Exit.Failure(cause) =>
+            loser.join.mapErrorCause(_ && cause) // Combine causes if right fails
+        }
+    )
 
   @deprecated("use raceFirst", "2.0.7")
   final def raceFirstAwait[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit

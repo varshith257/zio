@@ -1385,24 +1385,25 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
-    if (that == ZIO.never) self // Directly return `self` if `that` is effectively `Nil`
+    // Directly return `self` if `that` is effectively `Nil`
+    if (that == ZIO.never) self
     else
-    self.raceFibersWith(that)(
-      (winner, loser) => // left fiber wins
-        winner.await.flatMap {
-          case Exit.Success(value) =>
-            loser.interrupt *> winner.inheritAll.as(value) // Interrupt loser and inherit winner's scope
-          case Exit.Failure(cause) =>
-            loser.join.mapErrorCause(cause && _) // Combine causes if left fails
-        },
-      (winner, loser) => // right fiber wins
-        winner.await.flatMap {
-          case Exit.Success(value) =>
-            loser.interrupt *> winner.inheritAll.as(value) // Interrupt loser and inherit winner's scope
-          case Exit.Failure(cause) =>
-            loser.join.mapErrorCause(_ && cause) // Combine causes if right fails
-        }
-    )
+      self.raceWith(that)(
+      (leftExit, rightFiber) =>
+        leftExit match {
+            case Exit.Success(value) =>
+            rightFiber.interrupt *> ZIO.succeed(value)
+            case Exit.Failure(cause) =>
+            rightFiber.interrupt *> ZIO.succeed(value)
+          },
+      (rightExit, leftFiber) =>
+        rightExit match {
+            case Exit.Success(value) =>
+            leftFiber.interrupt *> ZIO.succeed(value)
+            case Exit.Failure(cause) =>
+            leftFiber.interrupt *> ZIO.failCause(cause)
+          }
+      )
 
   @deprecated("use raceFirst", "2.0.7")
   final def raceFirstAwait[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit

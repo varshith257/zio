@@ -1394,7 +1394,7 @@ sealed trait ZIO[-R, +E, +A]
             case Exit.Success(value) =>
             rightFiber.interrupt *> ZIO.succeed(value)
             case Exit.Failure(cause) =>
-            rightFiber.interrupt *> ZIO.succeed(value)
+            rightFiber.interrupt *> ZIO.failCause(cause)
           },
       (rightExit, leftFiber) =>
         rightExit match {

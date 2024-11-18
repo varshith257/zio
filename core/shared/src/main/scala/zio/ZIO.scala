@@ -1385,7 +1385,7 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
-    (self.exit race that.exit).unexit
+    // (self.exit race that.exit).unexit
     // Directly return `self` if `that` is effectively `Nil`
     if (that == ZIO.never) self
     else

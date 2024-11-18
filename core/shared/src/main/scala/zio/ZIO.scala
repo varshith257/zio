@@ -1389,22 +1389,18 @@ sealed trait ZIO[-R, +E, +A]
     // Directly return `self` if `that` is effectively `Nil`
     if (that == ZIO.never) self
     else
-      self.raceWith(that)(
-        (leftExit, rightFiber) =>
-          leftExit match {
-            case Exit.Success(value) =>
-              rightFiber.interrupt *> ZIO.succeed(value)
-            case Exit.Failure(cause) =>
-              rightFiber.interrupt *> ZIO.failCause(cause)
-          },
-        (rightExit, leftFiber) =>
-          rightExit match {
-            case Exit.Success(value) =>
-              leftFiber.interrupt *> ZIO.succeed(value)
-            case Exit.Failure(cause) =>
-              leftFiber.interrupt *> ZIO.failCause(cause)
-          }
-      )
+      ZIO.scoped {
+        for {
+          leftFiber  <- self.forkScoped
+          rightFiber <- that.forkScoped
+          result <- (leftFiber.await race rightFiber.await).flatMap {
+                      case Exit.Success(value) =>
+                        ZIO.succeed(value) // Return the winning value
+                      case Exit.Failure(cause) =>
+                        ZIO.failCause(cause) // Propagate the failure
+                    }
+        } yield result
+      }
 
   @deprecated("use raceFirst", "2.0.7")
   final def raceFirstAwait[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit

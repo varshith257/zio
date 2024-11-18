@@ -1391,9 +1391,10 @@ sealed trait ZIO[-R, +E, +A]
     else
       ZIO.scoped[R1] {
         for {
-          Env <- ZEnvironment.empty[Scope]
+          scope <- ZIO.scope
+          Env <- ZEnvironment.empty.add(scope)
           leftFiber  <- self.provideSomeEnvironment[R1 with Scope](_.union[Scope](Env)).forkScoped
-          rightFiber <- that.provideSomeEnvironment[R1 with Scope](_.union[Scope](Envy)).forkScoped
+          rightFiber <- that.provideSomeEnvironment[R1 with Scope](_.union[Scope](Env)).forkScoped
           result <- (leftFiber.await race rightFiber.await).flatMap {
                       case Exit.Success(value) =>
                         ZIO.succeed(value) // Return the winning value

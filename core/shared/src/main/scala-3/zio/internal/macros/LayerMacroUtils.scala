@@ -48,8 +48,11 @@ private[zio] object LayerMacroUtils {
     }
 
     '{
-      val trace   = Tracer.newTrace
-      given Trace = trace
+      val trace = Tracer.newTrace
+      given Trace = summonFrom {
+        case existing: Trace => existing
+        case _               => trace
+      }
 
       ${
         def typeToNode(tpe: TypeRepr): Node[TypeRepr, LayerExpr[E]] =

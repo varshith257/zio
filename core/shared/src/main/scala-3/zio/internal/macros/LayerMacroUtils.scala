@@ -42,17 +42,20 @@ private[zio] object LayerMacroUtils {
       loop(TypeRepr.of[T])
     }
 
+    def resolveTrace(trace: Trace): Trace =
+      summon[Trace] match {
+        case t: Trace => t
+        case _        => trace
+      }
+
     val layerToDebug: PartialFunction[LayerExpr[E], ZLayer.Debug] = {
       case '{ ZLayer.Debug.tree }    => ZLayer.Debug.Tree
       case '{ ZLayer.Debug.mermaid } => ZLayer.Debug.Mermaid
     }
 
     '{
-      val trace = Tracer.newTrace
-      given Trace = summonFrom {
-        case existing: Trace => existing
-        case _               => trace
-      }
+      val trace   = Tracer.newTrace
+      given Trace = resolveTrace(trace)
 
       ${
         def typeToNode(tpe: TypeRepr): Node[TypeRepr, LayerExpr[E]] =

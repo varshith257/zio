@@ -1385,24 +1385,7 @@ sealed trait ZIO[-R, +E, +A]
   final def raceFirst[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit
     trace: Trace
   ): ZIO[R1, E1, A1] =
-    // (self.exit race that.exit).unexit
-    // Directly return `self` if `that` is effectively `Nil`
-    if (that == ZIO.never) self
-    else
-      ZIO.scoped[R1] {
-        for {
-          scope <- ZIO.scope
-          scopeEnv = ZEnvironment.empty.add(scope)
-          leftFiber  <- self.provideSomeEnvironment[R1 with Scope](_.union(scopeEnv)).forkScoped
-          rightFiber <- that.provideSomeEnvironment[R1 with Scope](_.union(scopeEnv)).forkScoped
-          result <- (leftFiber.await race rightFiber.await).flatMap {
-                      case Exit.Success(value) =>
-                        ZIO.succeed(value) // Return the winning value
-                      case Exit.Failure(cause) =>
-                        ZIO.failCause(cause) // Propagate the failure
-                    }
-        } yield result
-      }
+      (self.exit race that.exit).unexit
 
   @deprecated("use raceFirst", "2.0.7")
   final def raceFirstAwait[R1 <: R, E1 >: E, A1 >: A](that: => ZIO[R1, E1, A1])(implicit

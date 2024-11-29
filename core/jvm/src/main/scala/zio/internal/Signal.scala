@@ -111,12 +111,11 @@ private object Signal {
 
       private def initInvocationHandler(handler: Consumer[AnyRef]): InvocationHandler =
         (proxy: Any, method: Method, args: Array[AnyRef]) => {
-          //Handle `toString`, `equals`, `hashCode` explicitly to avoid unintended recursion
+          // Handle `toString`, `equals`, `hashCode` explicitly to avoid unintended recursion
           method.getName match {
             case "toString" =>
               proxy match {
                 case ref: AnyRef =>
-                  // s"Proxy for ${handler.getClass.getName}"
                   s"${ref.getClass.getName}@${Integer.toHexString(System.identityHashCode(ref))}"
                 case _ =>
                   "InvalidProxy"

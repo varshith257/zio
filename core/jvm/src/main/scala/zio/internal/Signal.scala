@@ -116,9 +116,9 @@ private object Signal {
             case "toString" =>
               s"Proxy for ${handler.getClass.getName}"
             case "equals" =>
-              proxy eq args(0) // Referential equality check
+              proxy.asInstanceOf[AnyRef] eq args(0).asInstanceOf[AnyRef]
             case "hashCode" =>
-              System.identityHashCode(proxy) // Use identity hash code for the proxy
+              System.identityHashCode(proxy.asInstanceOf[AnyRef]) // Cast proxy to AnyRef
             case _ =>
               if (args != null && args.nonEmpty) handler.accept(args(0))
               null

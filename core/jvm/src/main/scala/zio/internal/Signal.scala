@@ -116,8 +116,8 @@ private object Signal {
             case "toString" =>
               proxy match {
                 case ref: AnyRef =>
-                  s"Proxy for ${handler.getClass.getName}"
-                // s"${ref.getClass.getName}@${Integer.toHexString(System.identityHashCode(ref))}"
+                  // s"Proxy for ${handler.getClass.getName}"
+                  s"${ref.getClass.getName}@${Integer.toHexString(System.identityHashCode(ref))}"
                 case _ =>
                   "InvalidProxy"
               }

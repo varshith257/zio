@@ -114,18 +114,24 @@ private object Signal {
           //Handle `toString`, `equals`, `hashCode` explicitly to avoid unintended recursion
           method.getName match {
             case "toString" =>
-              s"Proxy for ${handler.getClass.getName}"
+              proxy match {
+                case ref: AnyRef =>
+                  s"Proxy for ${handler.getClass.getName}"
+                // s"${ref.getClass.getName}@${Integer.toHexString(System.identityHashCode(ref))}"
+                case _ =>
+                  "InvalidProxy"
+              }
             case "equals" =>
-              if (args != null && args.length == 1) {
+              if (args != null && args.length == 1 && args(0) != null) {
                 (proxy, args(0)) match {
-                  case (ref1: AnyRef, ref2: AnyRef) => ref1 eq ref2
-                  case _                            => false
+                  case (ref1: AnyRef, ref2: AnyRef) => java.lang.Boolean.valueOf(ref1 eq ref2) // Boxed Boolean
+                  case _                            => java.lang.Boolean.FALSE                 // Boxed Boolean
                 }
-              } else false
+              } else java.lang.Boolean.FALSE
             case "hashCode" =>
               proxy match {
-                case ref: AnyRef => System.identityHashCode(ref) // Use identityHashCode for AnyRef
-                case _           => 0                            // Fallback for non-reference types
+                case ref: AnyRef => java.lang.Integer.valueOf(System.identityHashCode(ref)) // Boxed Int
+                case _           => java.lang.Integer.valueOf(0)                            // Boxed Int
               }
             case _ =>
               if (args != null && args.nonEmpty) handler.accept(args(0))

@@ -111,8 +111,19 @@ private object Signal {
 
       private def initInvocationHandler(handler: Consumer[AnyRef]): InvocationHandler =
         (proxy: Any, method: Method, args: Array[AnyRef]) => {
-          if (args.nonEmpty) handler.accept(args(0))
-          null
+          // Handle `toString`, `equals`, `hashCode` explicitly to avoid unintended recursion
+          method.getName match {
+            case "toString" =>
+              s"Proxy for ${handler.getClass.getName}"
+            case "equals" =>
+              proxy eq args(0) // Referential equality check
+            case "hashCode" =>
+              System.identityHashCode(proxy) // Use identity hash code for the proxy
+            case _ =>
+              if (args != null && args.nonEmpty) handler.accept(args(0))
+              null
+
+          }
         }
 
     }

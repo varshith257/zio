@@ -43,10 +43,8 @@ private[zio] object LayerMacroUtils {
     }
 
     def resolveTrace(trace: Trace): Trace =
-      summon[Trace] match {
-        case t: Trace => t
-        case _        => trace
-      }
+      try summon[Trace]
+      catch case _: MatchError => trace
 
     val layerToDebug: PartialFunction[LayerExpr[E], ZLayer.Debug] = {
       case '{ ZLayer.Debug.tree }    => ZLayer.Debug.Tree

@@ -16,7 +16,7 @@ import scala.concurrent.ExecutionContext
 
 object ZStreamSpec extends ZIOBaseSpec {
   import ZIOTag._
-  
+
   def inParallel(action: => Unit)(implicit ec: ExecutionContext): Unit =
     ec.execute(() => action)
 

@@ -4345,6 +4345,15 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
     fromInputStreamScoped[R](ZIO.acquireRelease(is)(is => ZIO.succeed(is.close())), chunkSize)
 
   /**
+   * Creates a stream from a scoped `java.io.InputStream` value.
+   */
+  def fromInputStreamScoped[R](
+    is: => ZIO[Scope with R, IOException, InputStream],
+    chunkSize: => Int = ZStream.DefaultChunkSize
+  )(implicit trace: Trace): ZStream[R, IOException, Byte] =
+    ZStream.scoped[R](is).flatMap(fromInputStream(_, chunkSize))
+
+  /**
    * Creates a stream from an iterable collection of values
    */
   def fromIterable[O](as: => Iterable[O])(implicit trace: Trace): ZStream[Any, Nothing, O] =

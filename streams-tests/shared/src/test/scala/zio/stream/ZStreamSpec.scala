@@ -5487,22 +5487,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               result <- fiber.await
             } yield assert(result)(isInterrupted)
           },
-          test("should handle interruption") {
-            for {
-              latch      <- Promise.make[Nothing, Unit]
-              data       <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new ByteArrayInputStream(data)
-              fiber <- ZStream
-                         .fromInputStream(inputStream)
-                         .tap(_ => latch.succeed(()) *> ZIO.never)
-                         .runCollect
-                         .fork
-              _      <- latch.await
-              _      <- fiber.interrupt
-              result <- fiber.await
-            } yield assert(result)(isInterrupted)
-          },
-          test("should ensure interruption") {
+          test("fromInputStreamZIO should ensure interruption") {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("ZIO Interruptible Stream!".getBytes("UTF-8"))
@@ -5517,7 +5502,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               result <- fiber.await
             } yield assert(result)(isInterrupted)
           },
-          test("properly interrupts and closes stream") {
+          test("fromInputStreamScoped should properly interrupts and closes stream") {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Scoped Interruptible Stream!".getBytes("UTF-8"))

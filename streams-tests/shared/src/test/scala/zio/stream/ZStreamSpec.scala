@@ -5505,7 +5505,7 @@ object ZStreamSpec extends ZIOBaseSpec {
               data       <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
               inputStream = new TrackingInputStream(data)
               fiber <- ZStream
-                         .fromInputStream(inputStream)
+                         .fromInputStream(ZIO.acquireRelease(ZIO.succeed(inputStream))(is => ZIO.succeed(is.close())))
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork

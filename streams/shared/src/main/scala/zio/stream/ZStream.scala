@@ -4333,9 +4333,9 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
                    else if (bytesRead == 0)
                      Exit.emptyChunk
                    else if (bytesRead < chunkSize)
-                     ZIO.succeed(Chunk.fromArray(bufArray).take(bytesRead))
+                     Exit.succeed(Chunk.fromArray(bufArray).take(bytesRead))
                    else
-                     ZIO.succeed(Chunk.fromArray(bufArray))
+                     Exit.succeed(Chunk.fromArray(bufArray))
         } yield bytes
       }
     }

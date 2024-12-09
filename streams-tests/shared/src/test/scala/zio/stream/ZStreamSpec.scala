@@ -2279,7 +2279,19 @@ object ZStreamSpec extends ZIOBaseSpec {
               .take(4)
               .runCollect
               .map(result => assert(result)(equalTo(Chunk("42", "@", "42", "@"))))
-          }
+          },
+          suite("issue #9181")(
+            test("it intersperses elements") {
+              assertZIO(
+                ZStream('a', 'b', 'c').via(ZPipeline.intersperse(',')).runCollect
+              )(equalTo(Chunk('a', ',', 'b', ',', 'c')))
+            },
+            test("it intersperses elements with prefix and suffix") {
+              assertZIO(
+                ZStream('a', 'b', 'c').via(ZPipeline.intersperse('[', ',', ']')).runCollect
+              )(equalTo(Chunk('[', 'a', ',', 'b', ',', 'c', ']')))
+            }
+          )
         ),
         suite("interruptWhen")(
           suite("interruptWhen(Promise)")(
@@ -2371,7 +2383,26 @@ object ZStreamSpec extends ZIOBaseSpec {
               s3      = s1.zipLatest(s2).interruptWhen(ZIO.never).take(3)
               _      <- s3.runDrain
             } yield assertCompletes
-          } @@ exceptJS(nonFlaky)
+          } @@ exceptJS(nonFlaky),
+          test("i9091 - forked children are not interrupted early by interruptWhen") {
+            for {
+              requestQueue <- Queue.unbounded[String]
+              counter      <- Ref.make(0)
+              _ <- ZStream
+                     .unwrapScoped(
+                       ZStream
+                         .fromQueue(requestQueue)
+                         .runForeach(_ => counter.update(_ + 1))
+                         .fork
+                         .as(ZStream.succeed("") ++ ZStream.never)
+                     )
+                     .interruptWhen(ZIO.never)
+                     .runDrain
+                     .fork
+              _ <- requestQueue.offer("some message").forever.fork
+              _ <- (ZIO.yieldNow *> counter.get).repeatUntil(_ >= 10)
+            } yield assertCompletes
+          } @@ exceptJS(nonFlaky) @@ TestAspect.timeout(30.seconds)
         ),
         suite("interruptAfter")(
           test("interrupts after given duration") {
@@ -2465,6 +2496,39 @@ object ZStreamSpec extends ZIOBaseSpec {
               value <- ref.get
             } yield assert(exit)(dies(hasMessage(equalTo("Die")))) &&
               assert(value)(equalTo(Chunk("Acquiring A", "Acquiring B", "Acquiring C", "Releasing B", "Releasing A")))
+          },
+          test("complex scope propagation (i9316)") {
+            def resource(ref: Ref[List[String]])(i: Int) =
+              ZIO.acquireRelease(ref.update(s"acquire $i" :: _).as(i))(_ => ref.update(s"release $i" :: _))
+            for {
+              ref <- Ref.make[List[String]](Nil)
+              _ <- ZIO.scoped(
+                     ZStream
+                       .fromIterable(0 until 3)
+                       .mapZIO(resource(ref))
+                       .mapZIO { i =>
+                         ZIO.scoped {
+                           ZStream
+                             .scoped(ZIO.blocking(ref.update(s"process $i" :: _)))
+                             .runScoped(ZSink.collectAll)
+                         }
+                       }
+                       .runDrain
+                   )
+              out <- ref.get.map(_.reverse)
+            } yield assertTrue(
+              out == List(
+                "acquire 0",
+                "process 0",
+                "acquire 1",
+                "process 1",
+                "acquire 2",
+                "process 2",
+                "release 2",
+                "release 1",
+                "release 0"
+              )
+            )
           }
         ),
         test("map")(check(pureStreamOfInts, Gen.function(Gen.int)) { (s, f) =>
@@ -2567,6 +2631,14 @@ object ZStreamSpec extends ZIOBaseSpec {
             .either
             .map(assert(_)(isLeft(equalTo(123))))
         },
+        test("mapErrorZIO") {
+          ZStream
+            .fail("123")
+            .mapErrorZIO(v => ZIO.succeed(v.toInt))
+            .runCollect
+            .either
+            .map(assert(_)(isLeft(equalTo(123))))
+        },
         suite("mapZIO")(
           test("ZIO#foreach equivalence") {
             check(Gen.small(Gen.listOfN(_)(Gen.byte)), Gen.function(Gen.successes(Gen.byte))) { (data, f) =>
@@ -2650,7 +2722,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                           .exit
               count <- interrupted.get
             } yield assert(count)(equalTo(2)) && assert(result)(fails(equalTo("Boom")))
-          } @@ exceptJS(nonFlaky),
+          } @@ exceptJS(nonFlaky(500)),
           test("propagates correct error with subsequent mapZIOPar call (#4514)") {
             assertZIO(
               ZStream
@@ -2672,36 +2744,40 @@ object ZStreamSpec extends ZIOBaseSpec {
             } yield assert(exit)(fails(hasMessage(equalTo("Boom"))))
           },
           test("parallelism is not exceeded") {
-            val iterations = 1000
-            checkAll(Gen.fromIterable(Chunk(4, 16, 32, 64))) { parallelism =>
-              for {
-                latch <- CountdownLatch.make(parallelism + 1)
-                f <- ZStream
-                       .range(0, iterations)
-                       .mapZIOPar(parallelism, parallelism)(_ => latch.countDown *> latch.await)
-                       .runDrain
-                       .fork
-                _     <- Live.live(latch.count.delay(100.micros)).repeatUntil(_ == 1)
-                _     <- latch.countDown
-                count <- latch.count
-                _     <- f.join
-              } yield assertTrue(count == 0)
-            }
-          } @@ TestAspect.jvmOnly @@ nonFlaky(20),
+            val iterations  = 1000
+            val parallelism = 64
+            for {
+              latch <- CountdownLatch.make(parallelism + 1)
+              f <- ZStream
+                     .range(0, iterations)
+                     .mapZIOPar(parallelism, parallelism)(_ => latch.countDown *> latch.await)
+                     .runDrain
+                     .fork
+              _     <- Live.live(latch.count.delay(100.micros)).repeatUntil(_ == 1)
+              _     <- latch.countDown
+              count <- latch.count
+              _     <- f.join
+            } yield assertTrue(count == 0)
+          } @@ TestAspect.jvmOnly @@ nonFlaky,
           test("accumulates parallel errors") {
             sealed abstract class DbError extends Product with Serializable
             case object Missing           extends DbError
             case object QtyTooLarge       extends DbError
 
             for {
-              exit <- ZStream(1 to 2: _*)
-                        .mapZIOPar(3) {
-                          case 1 => ZIO.fail(Missing)
-                          case 2 => ZIO.fail(QtyTooLarge)
-                          case _ => ZIO.succeed(true)
-                        }
-                        .runDrain
-                        .exit
+              latch  <- Promise.make[Nothing, Unit]
+              start1 <- Promise.make[Nothing, Unit]
+              start2 <- Promise.make[Nothing, Unit]
+              f <- ZStream(1 to 2: _*)
+                     .mapZIOPar(3) {
+                       case 1 => start1.succeed(()) *> latch.await *> ZIO.fail(Missing)
+                       case 2 => start2.succeed(()) *> latch.await *> ZIO.fail(QtyTooLarge)
+                       case _ => ZIO.succeed(true)
+                     }
+                     .runDrain
+                     .fork
+              _    <- start1.await *> start2.await *> latch.succeed(())
+              exit <- f.await
             } yield assert(exit)(
               failsCause(
                 containsCause[DbError](Cause.fail(Missing)) &&
@@ -2755,7 +2831,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                           .exit
               count <- interrupted.get
             } yield assert(count)(equalTo(2)) && assert(result)(fails(equalTo("Boom")))
-          } @@ exceptJS(nonFlaky),
+          } @@ exceptJS(nonFlaky(500)),
           test("awaits children fibers properly") {
             assertZIO(
               ZStream
@@ -2800,14 +2876,19 @@ object ZStreamSpec extends ZIOBaseSpec {
             case object QtyTooLarge       extends DbError
 
             for {
-              exit <- ZStream(1 to 2: _*)
-                        .mapZIOParUnordered(3) {
-                          case 1 => ZIO.fail(Missing)
-                          case 2 => ZIO.fail(QtyTooLarge)
-                          case _ => ZIO.succeed(true)
-                        }
-                        .runDrain
-                        .exit
+              latch  <- Promise.make[Nothing, Unit]
+              start1 <- Promise.make[Nothing, Unit]
+              start2 <- Promise.make[Nothing, Unit]
+              f <- ZStream(1 to 2: _*)
+                     .mapZIOParUnordered(3) {
+                       case 1 => start1.succeed(()) *> latch.await *> ZIO.fail(Missing)
+                       case 2 => start2.succeed(()) *> latch.await *> ZIO.fail(QtyTooLarge)
+                       case _ => ZIO.succeed(true)
+                     }
+                     .runDrain
+                     .fork
+              _    <- start1.await *> start2.await *> latch.succeed(())
+              exit <- f.await
             } yield assert(exit)(
               failsCause(
                 containsCause[DbError](Cause.fail(Missing)) &&
@@ -4169,7 +4250,7 @@ object ZStreamSpec extends ZIOBaseSpec {
                 fib <- ZStream
                          .fromQueue(c.queue)
                          .tap(_ => c.proceed)
-                         .flatMap(ex => ZStream.fromZIOOption(ZIO.done(ex)))
+                         .flatMap(ex => ZStream.fromZIOOption(ex))
                          .flattenChunks
                          .debounce(200.millis)
                          .interruptWhen(ZIO.never)
@@ -4807,9 +4888,9 @@ object ZStreamSpec extends ZIOBaseSpec {
                 ZStream.fromChunkQueue(left).zipLatest(ZStream.fromChunkQueue(right)).runIntoQueue(out).fork
               _      <- left.offer(Chunk(0))
               _      <- right.offerAll(List(Chunk(0), Chunk(1)))
-              chunk1 <- ZIO.replicateZIO(2)(out.take.flatMap(_.done)).map(_.flatten)
+              chunk1 <- ZIO.replicateZIO(2)(out.take.flatMap(_.exit)).map(_.flatten)
               _      <- left.offerAll(List(Chunk(1), Chunk(2)))
-              chunk2 <- ZIO.replicateZIO(2)(out.take.flatMap(_.done)).map(_.flatten)
+              chunk2 <- ZIO.replicateZIO(2)(out.take.flatMap(_.exit)).map(_.flatten)
             } yield assert(chunk1)(equalTo(List((0, 0), (0, 1)))) && assert(chunk2)(equalTo(List((1, 1), (2, 1))))
           } @@ exceptJS(nonFlaky),
           test("handle empty pulls properly") {

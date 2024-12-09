@@ -157,8 +157,13 @@ object SmartAssertMacros {
         val res = transformAs(body.asExprOf[TestLens[v]])(lhs)
         res.asInstanceOf[Expr[TestArrow[Any, A]]]
 
-      case Unseal(Inlined(a, b, expr)) =>
-        Inlined(a, b, transform(expr.asExprOf[A]).asTerm).asExprOf[zio.test.TestArrow[Any, A]]
+      case Unseal(tree @ Inlined(a, b, expr)) =>
+        // https://github.com/zio/zio/issues/8571
+        // always make sure to set the span on an Inlined tree back to its pre-inlining position since
+        // the implicit PositionContext gets its 'start' argument from the pre-inlinining position.
+        val preMacroExpansionSpan = getSpan(tree)
+        val arrow                 = Inlined(a, b, transform(expr.asExprOf[A]).asTerm).asExprOf[zio.test.TestArrow[Any, A]]
+        '{ $arrow.span($preMacroExpansionSpan) }
 
       case Unseal(Apply(Select(lhs, op @ (">" | ">=" | "<" | "<=")), List(rhs))) =>
         def tpesPriority(tpe: TypeRepr): Int =
@@ -335,19 +340,20 @@ object SmartAssertMacros {
               try Select.unique(param, name)
               catch {
                 case _: AssertionError =>
+                  def getFieldOrMethod(s: Symbol) =
+                    s.fieldMembers
+                      .find(f => f.name == name)
+                      .orElse(s.methodMember(name).filter(_.declarations.nonEmpty).headOption)
+
                   // Tries to find directly the referenced method on lhs's type (or if lhs is method, on lhs's returned type)
                   lhs.symbol.tree match {
                     case DefDef(_, _, tpt, _) =>
-                      tpt.symbol.declaredFields
-                        .find(_.name == name)
-                        .orElse(tpt.symbol.declaredMethods.find(_.name == name)) match {
+                      getFieldOrMethod(tpt.symbol) match {
                         case Some(fieldOrMethod) => Select(param, fieldOrMethod)
                         case None                => throw new Error(s"Could not resolve $name on $tpt")
                       }
                     case _ =>
-                      lhs.symbol.declaredFields
-                        .find(_.name == name)
-                        .orElse(lhs.symbol.declaredMethods.find(_.name == name)) match {
+                      getFieldOrMethod(lhs.symbol) match {
                         case Some(fieldOrMethod) => Select(param, fieldOrMethod)
                         case None                => throw new Error(s"Could not resolve $name on $lhs")
                       }

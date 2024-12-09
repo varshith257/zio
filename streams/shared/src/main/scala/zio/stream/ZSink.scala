@@ -378,6 +378,12 @@ final class ZSink[-R, +E, -In, +L, +Z] private (val channel: ZChannel[R, ZNothin
     new ZSink(channel.mapErrorCause(f))
 
   /**
+   * Transforms the errors emitted by this sink using `f`.
+   */
+  def mapErrorZIO[R1 <: R, E2](f: E => URIO[R1, E2])(implicit trace: Trace): ZSink[R1, E2, In, L, Z] =
+    new ZSink(self.channel.mapErrorZIO(f))
+
+  /**
    * Transforms the leftovers emitted by this sink using `f`.
    */
   def mapLeftover[L2](f: L => L2)(implicit trace: Trace): ZSink[R, E, In, L2, Z] =
@@ -456,8 +462,8 @@ final class ZSink[-R, +E, -In, +L, +Z] private (val channel: ZChannel[R, ZNothin
     capacity: => Int = 16
   )(implicit trace: Trace): ZSink[R1, E1, In1, L1, Either[Z, Z2]] =
     self.raceWith(that, capacity)(
-      selfDone => ZChannel.MergeDecision.done(ZIO.done(selfDone).map(Left(_))),
-      thatDone => ZChannel.MergeDecision.done(ZIO.done(thatDone).map(Right(_)))
+      selfDone => ZChannel.MergeDecision.done(selfDone.map(Left(_))),
+      thatDone => ZChannel.MergeDecision.done(thatDone.map(Right(_)))
     )
 
   /**
@@ -483,8 +489,8 @@ final class ZSink[-R, +E, -In, +L, +Z] private (val channel: ZChannel[R, ZNothin
                      rightDone
                    )
         channel = reader.mergeWith(writer)(
-                    _ => ZChannel.MergeDecision.await(ZIO.done(_)),
-                    done => ZChannel.MergeDecision.done(ZIO.done(done))
+                    _ => ZChannel.MergeDecision.await(ZIO.identityFn),
+                    done => ZChannel.MergeDecision.done(done)
                   )
       } yield new ZSink[R1, E1, In1, L1, Z2](channel)
     ZSink.unwrapScopedWith(scoped)

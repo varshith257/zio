@@ -69,6 +69,34 @@ final class ZEnvironment[+R] private (
   }
 
   /**
+   * Similar to `equals` but uses reference equality on the map's elements.
+   * Therefore, this method might result in false negatives but never in false
+   * positives.
+   *
+   * Useful for cases where failing the equality check will not produce an
+   * invalid state (e.g., applying optimizations) and we want to avoid the
+   * overhead of strict equality.
+   */
+  private def relaxedEquals(that: ZEnvironment[_]): Boolean =
+    if (self eq that) true
+    else if (self.scope ne that.scope) false
+    else if (self.map eq that.map) true
+    else if (self.map.size != that.map.size) false
+    else {
+      // We check in the reverse order since this is an update-ordered map
+      // We could potentially check only the last element but that might result in a false positive so better be safe
+      val l   = self.map.reverseIterator
+      val r   = that.map.reverseIterator
+      var res = true
+      while (l.hasNext && res) {
+        val (lk, lv) = l.next().asInstanceOf[(LightTypeTag, AnyRef)]
+        val (rk, rv) = r.next().asInstanceOf[(LightTypeTag, AnyRef)]
+        res = lk == rk && (lv eq rv)
+      }
+      res
+    }
+
+  /**
    * Retrieves a service from the environment.
    */
   def get[A >: R](implicit tag: Tag[A]): A =
@@ -184,7 +212,7 @@ final class ZEnvironment[+R] private (
    * the right hand side will be preferred.
    */
   def unionAll[R1](that: ZEnvironment[R1]): ZEnvironment[R with R1] =
-    if (self == that) that.asInstanceOf[ZEnvironment[R with R1]]
+    if (self.relaxedEquals(that)) that.asInstanceOf[ZEnvironment[R with R1]]
     else {
       val newMap = that.map.iterator.foldLeft(self.map) { case (map, (k, v)) =>
         map.updated(k, v)
@@ -255,7 +283,7 @@ final class ZEnvironment[+R] private (
         else value
       }
 
-      private[this] def getUnsafe[A](tag: LightTypeTag)(implicit unsafe: Unsafe): A = {
+      private[this] def getUnsafe[A](tag: LightTypeTag): A = {
         val fromCache = self.cache.get(tag)
         if (fromCache != null)
           fromCache.asInstanceOf[A]
@@ -273,7 +301,7 @@ final class ZEnvironment[+R] private (
             }
           }
           if (service != null) {
-            self.cache.put(tag, service)
+            self.cache.putIfAbsent(tag, service)
           }
           service
         }
@@ -383,9 +411,9 @@ object ZEnvironment {
         if (patches eq Nil) env
         else
           patches.head match {
-            case AddService(service, tag) => loop(env.unsafe.addService(tag, service)(Unsafe.unsafe), patches.tail)
+            case AddScope(scope)          => loop(env.unsafe.addScope(scope)(Unsafe), patches.tail)
+            case AddService(service, tag) => loop(env.unsafe.addService(tag, service)(Unsafe), patches.tail)
             case AndThen(first, second)   => loop(env, erase(first) :: erase(second) :: patches.tail)
-            case AddScope(scope)          => loop(env.unsafe.addScope(scope)(Unsafe.unsafe), patches.tail)
             case _: Empty[?]              => loop(env, patches.tail)
             case _: RemoveService[?, ?]   => loop(env, patches.tail)
             case _: UpdateService[?, ?]   => loop(env, patches.tail)
@@ -395,9 +423,7 @@ object ZEnvironment {
       if (isEmpty) env0
       else {
         val out = loop(environment, self.asInstanceOf[Patch[Any, Any]] :: Nil).asInstanceOf[ZEnvironment[Out]]
-        // Unfortunately we can't rely on eq here. However, the ZEnvironment equals method uses a cached hashCode
-        // so it's pretty fast
-        if (env0 == out) env0 else out
+        if (env0.relaxedEquals(out)) env0 else out
       }
     }
 

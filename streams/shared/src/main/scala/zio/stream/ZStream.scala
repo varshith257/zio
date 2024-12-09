@@ -4321,7 +4321,7 @@ object ZStream extends ZStreamPlatformSpecificConstructors {
             if (is.available() > 0)
               ZIO.succeed(is.read(bufArray))
             else
-              ZIO.attemptBlockingIO(is.read(bufArray)).disconnect
+              ZIO.attemptBlockingIO(is.read(bufArray)).disconnect.refineToOrDie[IOException]
           bytes <- if (bytesRead < 0)
                      Exit.failNone
                    else if (bytesRead == 0)

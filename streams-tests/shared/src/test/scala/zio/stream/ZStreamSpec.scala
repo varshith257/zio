@@ -16,19 +16,7 @@ import scala.concurrent.ExecutionContext
 
 object ZStreamSpec extends ZIOBaseSpec {
   import ZIOTag._
-  // Custom InputStream to track close calls
-  class TrackingInputStream(data: Array[Byte]) extends InputStream {
-    private val inputStream = new ByteArrayInputStream(data)
-    var closed              = false
-
-    override def read(): Int = inputStream.read()
-
-    override def close(): Unit = {
-      closed = true
-      inputStream.close()
-    }
-  }
-
+  
   def inParallel(action: => Unit)(implicit ec: ExecutionContext): Unit =
     ec.execute(() => action)
 

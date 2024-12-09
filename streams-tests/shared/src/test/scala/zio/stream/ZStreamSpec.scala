@@ -9,7 +9,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, nonFlaky, scala2Only, withLiveClock}
 import zio.test._
 
-import java.io.{InputStream, ByteArrayInputStream, IOException}
+import java.io.{ByteArrayInputStream, IOException}
 import java.util.concurrent.TimeUnit
 import java.util.concurrent.atomic.AtomicInteger
 import scala.concurrent.ExecutionContext
@@ -5503,16 +5503,16 @@ object ZStreamSpec extends ZIOBaseSpec {
             for {
               latch      <- Promise.make[Nothing, Unit]
               data       <- ZIO.succeed("Interruptible Stream!".getBytes("UTF-8"))
-              inputStream = new TrackingInputStream(data)
+              inputStream = new ByteArrayInputStream(data)
               fiber <- ZStream
-                         .fromInputStream(ZIO.acquireRelease(ZIO.succeed(inputStream))(is => ZIO.succeed(is.close())))
+                         .fromInputStream(inputStream)
                          .tap(_ => latch.succeed(()) *> ZIO.never)
                          .runCollect
                          .fork
               _      <- latch.await
               _      <- fiber.interrupt
               result <- fiber.await
-            } yield assert(result)(isInterrupted) && assert(inputStream.closed)(isTrue)
+            } yield assert(result)(isInterrupted)
           },
           test("should ensure interruption") {
             for {

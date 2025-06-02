@@ -127,7 +127,7 @@ object ZStreamPlatformSpecific2Spec extends ZIOBaseSpec {
           def countElements: UIO[Int] =
             asyncTenStream.runCount.map(_.toInt)
 
-          val runs: UIO[List[Int]] = ZIO.foreach(1 to 100)(_ => countElements)
+          val runs: UIO[IndexedSeq[Int]] = ZIO.foreach(1 to 100)(_ => countElements)
 
           for {
             counts <- runs

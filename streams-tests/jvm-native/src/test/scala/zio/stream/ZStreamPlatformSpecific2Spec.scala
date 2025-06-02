@@ -122,6 +122,7 @@ object ZStreamPlatformSpecific2Spec extends ZIOBaseSpec {
                 i += 1
               }
               cb.end
+              ()
             }
 
           def countElements: UIO[Int] =

@@ -70,7 +70,8 @@ private[stream] trait ZStreamPlatformSpecificConstructors {
         ZIO.succeed {
           register { k =>
             try {
-              runtime.unsafe.runToFuture(stream.Take.fromPull(k).flatMap(output.offer))(trace, Unsafe.unsafe)
+              runtime.unsafe
+                .runToFuture(ZIO.yieldNow *> stream.Take.fromPull(k).flatMap(output.offer))(trace, Unsafe.unsafe)
             } catch {
               case FiberFailure(c) if c.isInterrupted =>
                 Future.successful(false)

@@ -45,24 +45,18 @@ private[zio] class WeakConcurrentBag[A <: AnyRef](nurserySize: Int, isAlive: IsA
   }
 
   private final class NativeBag[E](capacity: Int) extends AbstractBag[E] {
-    private val lock = new ReentrantLock()
-    private val set  = Collections.synchronizedSet(new HashSet[E](capacity))
+    private val set = Collections.synchronizedSet(new HashSet[E](capacity))
 
-    override def add(e: E): Unit = {
-      lock.lock()
-      try set.add(e)
-      finally lock.unlock()
-    }
-    override def removeIf(p: Predicate[E]): Boolean = {
-      lock.lock()
-      try set.removeIf(p)
-      finally lock.unlock()
-    }
+    override def add(e: E): Unit =
+      set.add(e)
+    override def removeIf(p: Predicate[E]): Boolean =
+      set.removeIf(p)
 
     override def iterator(): JIterator[E] = {
-      lock.lock()
-      val snapshot = new ArrayList[E](set)
-      lock.unlock()
+      val snapshot = set.synchronized {
+        new ArrayList[E](set)
+      }
+
       snapshot.iterator()
     }
     override def size(): Int = set.size()

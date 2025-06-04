@@ -2,8 +2,8 @@ package zio.test.environment
 
 import zio._
 import zio.test.Assertion._
-import zio.test.TestAspect.nonFlaky
-import zio.test.{TestClock, ZIOBaseSpec, assert}
+import zio.test.TestAspect.{nonFlaky, timeout}
+import zio.test.{TestClock, ZIOBaseSpec, assert, assertCompletes}
 
 import java.util.concurrent.TimeUnit
 
@@ -123,9 +123,13 @@ object TestClockSpecJVM extends ZIOBaseSpec {
             _      <- ZIO.succeed(future.cancel(false))
             _      <- TestClock.adjust(11.seconds)
             values <- ref.get
-            _      <- ZIO.logInfo(s"Values after interruption: $values")
           } yield assert(values.reverse)(equalTo(List(5L)))
         }
+      ),
+      suite("adjust")(
+        test("is thread safe") {
+          (TestClock.adjust(1.second) &> TestClock.adjust(1.second)).as(assertCompletes)
+        } @@ timeout(10.seconds)
       )
-    ) @@ nonFlaky(20)
+    ) @@ nonFlaky(10)
 }

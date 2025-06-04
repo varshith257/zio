@@ -954,7 +954,7 @@ object ConfigProviderSpec extends ZIOBaseSpec {
           result <- configProvider.load(config)
         } yield assertTrue(result == Nil)
       } +
-      //FIXME: Failing test
+      // FIXME: Failing test
       test("empty list within indexed list") {
         val configProvider =
           ConfigProvider.fromMap(
@@ -969,7 +969,6 @@ object ConfigProviderSpec extends ZIOBaseSpec {
 
         for {
           result <- configProvider.load(config)
-          _       = println(result)
         } yield assertTrue(result == List(Nil, List(1), List(1, 2)))
       }
   }

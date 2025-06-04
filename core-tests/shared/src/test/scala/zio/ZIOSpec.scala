@@ -7,6 +7,7 @@ import zio.test.Assertion._
 import zio.test.TestAspect.{exceptJS, flaky, forked, jvmOnly, nonFlaky, scala2Only, timeout, withLiveClock}
 import zio.test._
 
+import java.util.concurrent.atomic.AtomicBoolean
 import scala.annotation.tailrec
 import scala.util.{Failure, Success, Try}
 
@@ -265,7 +266,14 @@ object ZIOSpec extends ZIOBaseSpec {
           _                 <- startWaiting.await
           _                 <- callFiber.interrupt
         } yield assert(first)(equalTo(false))
-      }
+      },
+      test("does not cache interruption") {
+        for {
+          effect <- ZIO.sleep(Duration.fromSeconds(1)).cached(Duration.Infinity)
+          res1   <- effect.timeout(Duration.fromMillis(1)).exit
+          res2   <- effect.exit
+        } yield assertTrue(res1.isSuccess, !res1.isInterrupted, res2.isSuccess, !res2.isInterrupted)
+      } @@ TestAspect.withLiveClock
     ),
     suite("catchNonFatalOrDie")(
       test("recovers from NonFatal") {
@@ -488,23 +496,6 @@ object ZIOSpec extends ZIOBaseSpec {
           race1 <- io.raceAll(ios)
           race2 <- ZIO.raceAll(io, ios)
         } yield assert(race1)(equalTo(race2))
-      }
-    ),
-    suite("done")(
-      test("Check done lifts exit result into IO") {
-
-        val fiberId = FiberId(0, 123, Trace.empty)
-        val error   = exampleError
-
-        for {
-          completed   <- ZIO.done(Exit.succeed(1))
-          interrupted <- ZIO.done(Exit.interrupt(fiberId)).exit
-          terminated  <- ZIO.done(Exit.die(error)).exit
-          failed      <- ZIO.done(Exit.fail(error)).exit
-        } yield assert(completed)(equalTo(1)) &&
-          assert(interrupted)(isInterrupted) &&
-          assert(terminated)(dies(equalTo(error))) &&
-          assert(failed)(fails(equalTo(error)))
       }
     ),
     suite("executor")(
@@ -1324,6 +1315,22 @@ object ZIOSpec extends ZIOBaseSpec {
         assertCompletes
       }
     ),
+    suite("fromEither") {
+      test("produces a stack trace on failure") {
+        ZIO
+          .fromEither(Left("foo"))
+          .catchAllCause(cause => ZIO.succeed(cause.trace.stackTrace))
+          .map(t => assertTrue(t.nonEmpty))
+      }
+    },
+    suite("fromEitherCause") {
+      test("produces a stack trace on failure") {
+        ZIO
+          .fromEitherCause(Left(Cause.fail("foo")))
+          .catchAllCause(cause => ZIO.succeed(cause.trace.stackTrace))
+          .map(t => assertTrue(t.nonEmpty))
+      }
+    },
     suite("fromFutureInterrupt")(
       test("running Future can be interrupted") {
         import java.util.concurrent.atomic.AtomicInteger
@@ -1351,10 +1358,10 @@ object ZIOSpec extends ZIOBaseSpec {
     ) @@ zioTag(future, interruption) @@ exceptJS,
     suite("head")(
       test("on non empty list") {
-        assertZIO(ZIO.succeed(List(1, 2, 3)).head.either)(isRight(equalTo(1)))
+        assertZIO(ZIO.succeed(Seq(1, 2, 3)).head.either)(isRight(equalTo(1)))
       },
       test("on empty list") {
-        assertZIO(ZIO.succeed(List.empty).head.either)(isLeft(isNone))
+        assertZIO(ZIO.succeed(Seq.empty).head.either)(isLeft(isNone))
       },
       test("on failure") {
         assertZIO(ZIO.fail("Fail").head.either)(isLeft(isSome(equalTo("Fail"))))
@@ -1801,11 +1808,8 @@ object ZIOSpec extends ZIOBaseSpec {
         val successes = Gen.successes(smallInts)
         val exits     = Gen.either(causes, successes).map(_.fold(Exit.failCause, Exit.succeed))
         check(exits, exits, exits) { (exit1, exit2, exit3) =>
-          val zio1  = ZIO.done(exit1)
-          val zio2  = ZIO.done(exit2)
-          val zio3  = ZIO.done(exit3)
-          val left  = (zio1 orElse zio2) orElse zio3
-          val right = zio1 orElse (zio2 orElse zio3)
+          val left  = (exit1 orElse exit2) orElse exit3
+          val right = exit1 orElse (exit2 orElse exit3)
           for {
             left  <- left.exit
             right <- right.exit
@@ -1959,7 +1963,17 @@ object ZIOSpec extends ZIOBaseSpec {
       } @@ flaky @@ zioTag(errors),
       test("returns success when it happens after failure") {
         assertZIO(ZIO.fail(42).raceAll(List(ZIO.succeed(24) <* Live.live(ZIO.sleep(100.millis)))))(equalTo(24))
-      } @@ zioTag(errors)
+      } @@ zioTag(errors),
+      test("always calls finalizers") {
+        for {
+          isRunning              <- ZIO.succeed(new AtomicBoolean(true))
+          backgroundBlockingStuff = ZIO.whileLoop(isRunning.get)(ZIO.yieldNow)(_ => ())
+          acquire                 = backgroundBlockingStuff.fork
+          release                 = ZIO.succeed(isRunning.set(false))
+          eff                     = ZIO.acquireRelease(acquire)(_ => release)
+          _                      <- eff.raceAll(List(ZIO.never))
+        } yield assertCompletes
+      } @@ timeout(10.seconds) @@ zioTag(errors) @@ exceptJS
     ),
     suite("reduceAllPar")(
       test("return zero element on empty input") {
@@ -2001,6 +2015,15 @@ object ZIOSpec extends ZIOBaseSpec {
       test("positive") {
         val lst: Iterable[UIO[Int]] = ZIO.replicate(2)(ZIO.succeed(12))
         assertZIO(ZIO.collectAll(lst))(equalTo(List(12, 12)))
+      }
+    ),
+    suite("retryN")(
+      test("retryN retries n times") {
+        for {
+          ref    <- Ref.make(0)
+          _      <- (ref.update(_ + 1) *> ZIO.fail(None)).retryN(3).orElse(ZIO.unit)
+          result <- ref.get
+        } yield assertTrue(result == 4)
       }
     ),
     suite("retryUntil")(
@@ -2256,6 +2279,12 @@ object ZIOSpec extends ZIOBaseSpec {
       },
       test("suspendSucceed must be evaluatable") {
         assertZIO(ZIO.suspendSucceed(ZIO.succeed(42)))(equalTo(42))
+      },
+      test("ZIO.suspendSucceed is implemented with a ZIO.unit as first") {
+        ZIO.suspendSucceed(ZIO.succeed(42)) match {
+          case ZIO.FlatMap(_, first, _) => assertTrue(first eq ZIO.unit)
+          case _                        => assertNever("ZIO.suspendSucceed is not implemented as a FlatMap")
+        }
       },
       test("point, bind, map") {
         def fibIo(n: Int): Task[BigInt] =
@@ -2731,37 +2760,37 @@ object ZIOSpec extends ZIOBaseSpec {
         } yield assertTrue(value == 42)
       },
       test("async should not resume fiber twice after interruption") {
+        implicit val us: Unsafe = Unsafe
         for {
-          step            <- Promise.make[Nothing, Unit]
+          started         <- Promise.make[Nothing, Unit]
+          step            <- Promise.make[Nothing, ZIO[Any, Nothing, Unit] => Unit]
           unexpectedPlace <- Ref.make(List.empty[Int])
           runtime         <- ZIO.runtime[Live]
           fork <- ZIO
                     .async[Any, Nothing, Unit] { k =>
-                      Unsafe.unsafe { implicit unsafe =>
-                        runtime.unsafe.fork {
-                          step.await *> ZIO.succeed(k(unexpectedPlace.update(1 :: _)))
-                        }
+                      runtime.unsafe.fork {
+                        step.await *> ZIO.succeed(k(unexpectedPlace.update(1 :: _)))
                       }
+                      started.unsafe.succeedUnit
                       ()
                     }
-                    .ensuring(ZIO.async[Any, Nothing, Unit] { _ =>
-                      Unsafe.unsafe { implicit unsafe =>
-                        runtime.unsafe.fork {
-                          step.succeed(())
-                        }
-                      }
+                    .ensuring(ZIO.async[Any, Nothing, Unit] { k =>
+                      step.unsafe.succeed(k)
                       ()
-                    //never complete
+                      // never complete
                     })
                     .ensuring(unexpectedPlace.update(2 :: _))
                     .forkDaemon
-          result     <- Live.withLive(fork.interrupt)(_.timeout(5.seconds))
+          _          <- started.await
+          result     <- fork.interrupt.timeout(100.millis)
           unexpected <- unexpectedPlace.get
+          // Invoke the callback now we collected everything otherwise the fiber is stuck in an uninterruptible region
+          _ <- step.await.map(_(Exit.unit))
         } yield {
           assert(unexpected)(isEmpty) &&
           assert(result)(isNone) // timeout happens
         }
-      } @@ zioTag(interruption) @@ flaky,
+      } @@ zioTag(interruption) @@ withLiveClock @@ nonFlaky(10),
       test("test interruption of infinite async in uninterruptible region") {
         for {
           finalized <- Ref.make(false)
@@ -2927,7 +2956,7 @@ object ZIOSpec extends ZIOBaseSpec {
                          .catchAllCause(cause => ZIO.succeed(cause.failures))
                          .fork
                      }
-            failures <- ensuring.await *> fiber.interrupt.flatMap(ZIO.done(_))
+            failures <- ensuring.await *> fiber.interrupt.unexit
           } yield assertTrue(failures.length == 0)
         } +
         test("previous untyped errors are retained even after interruptible region") {
@@ -2943,7 +2972,7 @@ object ZIOSpec extends ZIOBaseSpec {
                          .catchAllCause(cause => ZIO.succeed(cause))
                          .fork
                      }
-            cause <- ensuring.await *> fiber.interrupt.flatMap(ZIO.done(_))
+            cause <- ensuring.await *> fiber.interrupt.unexit
           } yield assertTrue(cause.defects.length == 1)
         } @@ exceptJS(nonFlaky)
 
@@ -3065,6 +3094,16 @@ object ZIOSpec extends ZIOBaseSpec {
         val io = ZIO.succeed(42).race(ZIO.never)
         assertZIO(io)(equalTo(42))
       },
+      test("race always calls finalizers") {
+        for {
+          isRunning              <- ZIO.succeed(new AtomicBoolean(true))
+          backgroundBlockingStuff = ZIO.whileLoop(isRunning.get)(ZIO.yieldNow)(_ => ())
+          acquire                 = backgroundBlockingStuff.fork
+          release                 = ZIO.succeed(isRunning.set(false))
+          eff                     = ZIO.acquireRelease(acquire)(_ => release)
+          _                      <- eff.race(ZIO.never)
+        } yield assertCompletes
+      } @@ timeout(10.seconds) @@ exceptJS,
       test("firstSuccessOf of values") {
         val io = ZIO.firstSuccessOf(ZIO.fail(0), List(ZIO.succeed(100))).either
         assertZIO(io)(isRight(equalTo(100)))
@@ -3121,6 +3160,21 @@ object ZIOSpec extends ZIOBaseSpec {
           b      <- effect.await
         } yield assert(b)(equalTo(42))
       } @@ zioTag(interruption),
+      test("raceFirst always calls finalizers") {
+        def runTest(useCompanionObject: Boolean) = for {
+          isRunning              <- ZIO.succeed(new AtomicBoolean(true))
+          backgroundBlockingStuff = ZIO.whileLoop(isRunning.get)(ZIO.yieldNow)(_ => ())
+          acquire                 = backgroundBlockingStuff.fork
+          release                 = ZIO.succeed(isRunning.set(false))
+          eff                     = ZIO.acquireRelease(acquire)(_ => release)
+          _                      <- if (useCompanionObject) ZIO.raceFirst(eff, List(ZIO.never)) else eff.raceFirst(ZIO.never)
+        } yield assertCompletes
+
+        for {
+          _ <- runTest(useCompanionObject = true).fork
+          _ <- runTest(useCompanionObject = false).fork
+        } yield assertCompletes
+      } @@ timeout(10.seconds) @@ exceptJS @@ zioTag(interruption),
       test("mergeAll") {
         val io = ZIO.mergeAll(List("a", "aa", "aaa", "aaaa").map(ZIO.succeed[String](_)))(0)((b, a) => b + a.length)
 
@@ -3697,6 +3751,168 @@ object ZIOSpec extends ZIOBaseSpec {
       test("effectfully accesses a service in the environment") {
         val zio = ZIO.serviceWithZIO[Int](int => ZIO.succeed(int + 3))
         assertZIO(zio.provide(ZLayer.succeed(0)))(equalTo(3))
+      }
+    ),
+    suite("fromFunction")(
+      test("1 arg") {
+        ZIO
+          .fromFunction((int: Int) => int + 1)
+          .map(n => assertTrue(n == 2))
+          .provide(ZLayer.succeed(1))
+      },
+      test("2 arg") {
+        ZIO.fromFunction { (int: Int, s: String) =>
+          assertTrue(int == 1, s == "a")
+        }
+          .provide(ZLayer.succeed(1) ++ ZLayer.succeed("a"))
+      },
+      test("3 arg") {
+        ZIO.fromFunction { (int: Int, s: String, d: Double) =>
+          assertTrue(int == 1, s == "a", d == 2.0)
+        }
+          .provide(ZLayer.succeed(1) ++ ZLayer.succeed("a") ++ ZLayer.succeed(2.0))
+      },
+      test("4 arg") {
+        ZIO.fromFunction { (int: Int, s: String, d: Double, b: Byte) =>
+          assertTrue(int == 1, s == "a", d == 2.0, b == 3)
+        }
+          .provide(ZLayer.succeed(1) ++ ZLayer.succeed("a") ++ ZLayer.succeed(2.0) ++ ZLayer.succeed(3.toByte))
+      },
+      test("5 arg") {
+        ZIO.fromFunction { (int: Int, s: String, d: Double, b: Byte, c: Char) =>
+          assertTrue(int == 1, s == "a", d == 2.0, b == 3, c == 'c')
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("a") ++
+              ZLayer.succeed(2.0) ++
+              ZLayer.succeed(3.toByte) ++
+              ZLayer.succeed('c')
+          )
+      },
+      test("6 arg") {
+        ZIO.fromFunction { (int: Int, s: String, d: Double, b: Byte, c: Char, li: List[Int]) =>
+          assertTrue(int == 1, s == "a", d == 2.0, b == 3, c == 'c', li == List(1, 2))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("a") ++
+              ZLayer.succeed(2.0) ++
+              ZLayer.succeed(3.toByte) ++
+              ZLayer.succeed('c') ++
+              ZLayer.succeed(List(1, 2))
+          )
+      },
+      test("7 arg") {
+        ZIO.fromFunction { (int: Int, s: String, d: Double, b: Byte, c: Char, li: List[Int], ls: List[String]) =>
+          assertTrue(int == 1, s == "a", d == 2.0, b == 3, c == 'c', li == List(1, 2), ls == List("a", "b"))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("a") ++
+              ZLayer.succeed(2.0) ++
+              ZLayer.succeed(3.toByte) ++
+              ZLayer.succeed('c') ++
+              ZLayer.succeed(List(1, 2)) ++
+              ZLayer.succeed(List("a", "b"))
+          )
+      }
+    ),
+    suite("fromFunctionZIO")(
+      test("1 arg") {
+        ZIO.fromFunctionZIO { (int: Int) =>
+          ZIO.succeed(assertTrue(int == 1))
+        }
+          .provide(ZLayer.succeed(1))
+      },
+      test("fromFunction works with environment") {
+        trait MyService {
+          def n: Int
+        }
+
+        ZIO.fromFunctionZIO { (int: Int) =>
+          ZIO
+            .serviceWith[MyService](_.n + int)
+            .map(n => assertTrue(n == 3))
+        }
+          .provide(ZLayer.succeed(2) ++ ZLayer.succeed(new MyService { def n = 1 }))
+      },
+      test("2 arg") {
+        ZIO.fromFunctionZIO { (int: Int, string: String) =>
+          ZIO.succeed(assertTrue(int == 1, string == "ab"))
+        }
+          .provide(ZLayer.succeed(1) ++ ZLayer.succeed("ab"))
+      },
+      test("3 arg") {
+        ZIO.fromFunctionZIO { (int: Int, string: String, double: Double) =>
+          ZIO.succeed(assertTrue(int == 1, string == "ab", double == 3))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("ab") ++
+              ZLayer.succeed(3.toDouble)
+          )
+      },
+      test("4 arg") {
+        ZIO.fromFunctionZIO { (int: Int, string: String, double: Double, byte: Byte) =>
+          ZIO.succeed(assertTrue(int == 1, string == "ab", double == 3, byte == 4))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("ab") ++
+              ZLayer.succeed(3.toDouble) ++
+              ZLayer.succeed(4.toByte)
+          )
+      },
+      test("5 arg") {
+        ZIO.fromFunctionZIO { (int: Int, string: String, double: Double, byte: Byte, c: Char) =>
+          ZIO.succeed(assertTrue(int == 1, string == "ab", double == 3, byte == 4, c == 'c'))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("ab") ++
+              ZLayer.succeed(3.toDouble) ++
+              ZLayer.succeed(4.toByte) ++
+              ZLayer.succeed('c')
+          )
+      },
+      test("6 arg") {
+        ZIO.fromFunctionZIO { (int: Int, string: String, double: Double, byte: Byte, c: Char, li: List[Int]) =>
+          ZIO.succeed(assertTrue(int == 1, string == "ab", double == 3, byte == 4, c == 'c', li == List(1, 2)))
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("ab") ++
+              ZLayer.succeed(3.toDouble) ++
+              ZLayer.succeed(4.toByte) ++
+              ZLayer.succeed('c') ++
+              ZLayer.succeed(List(1, 2))
+          )
+      },
+      test("7 arg") {
+        ZIO.fromFunctionZIO {
+          (int: Int, string: String, double: Double, byte: Byte, c: Char, li: List[Int], ls: List[String]) =>
+            ZIO.succeed(
+              assertTrue(
+                int == 1,
+                string == "ab",
+                double == 3,
+                byte == 4,
+                c == 'c',
+                li == List(1, 2),
+                ls == List("a", "b")
+              )
+            )
+        }
+          .provide(
+            ZLayer.succeed(1) ++
+              ZLayer.succeed("ab") ++
+              ZLayer.succeed(3.toDouble) ++
+              ZLayer.succeed(4.toByte) ++
+              ZLayer.succeed('c') ++
+              ZLayer.succeed(List(1, 2)) ++
+              ZLayer.succeed(List("a", "b"))
+          )
       }
     ),
     suite("schedule")(
@@ -4499,7 +4715,7 @@ object ZIOSpec extends ZIOBaseSpec {
         for {
           future <- ZIO.fail(new Throwable(new IllegalArgumentException)).toFuture
           result <- ZIO.fromFuture(_ => future).either
-        } yield assert(result)(isLeft(hasSuppressed(exists(hasMessage(containsString("zio-fiber"))))))
+        } yield assert(result)(isLeft(hasSuppressed(exists(hasMessage(containsString("IllegalArgumentException"))))))
       }
     ) @@ zioTag(future),
     suite("resurrect")(
@@ -4618,6 +4834,60 @@ object ZIOSpec extends ZIOBaseSpec {
           _      <- ZIO.scoped(ZIO.fromAutoCloseable(closeable))
           result <- effects.get
         } yield assert(result)(equalTo(List("Closed")))
+      }
+    ),
+    suite("eager evaluation of ZIO methods on Exit")(
+      test("as") {
+        val exit = Exit.succeed(1).as(2)
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("flatMap(success)") {
+        val exit = Exit.succeed(1).flatMap(a => Exit.succeed(a + 1))
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("flatMap(failure)") {
+        val exit = Exit.succeed(1).flatMap(a => Exit.fail(a + 1))
+        assertTrue(exit == Exit.fail(2))
+      },
+      test("fold(success)") {
+        val exit = (Exit.succeed(1): IO[Int, Int]).fold(_ - 1, _ + 1)
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("fold(failure)") {
+        val exit = (Exit.fail(1): IO[Int, Int]).fold(_ - 1, _ + 1)
+        assertTrue(exit == Exit.succeed(0))
+      },
+      test("foldCause(success)") {
+        val exit = (Exit.succeed(1): IO[Int, Int]).foldCause(_ => -1, _ + 1)
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("foldCause(failure)") {
+        val exit = (Exit.fail(1): IO[Int, Int]).foldCause(_ => -1, _ + 1)
+        assertTrue(exit == Exit.succeed(-1))
+      },
+      test("map") {
+        val exit = Exit.succeed(1).map(_ + 1)
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("mapBoth(success)") {
+        val exit = (Exit.succeed(1): IO[Int, Int]).mapBoth(_ - 1, _ + 1)
+        assertTrue(exit == Exit.succeed(2))
+      },
+      test("mapBoth(failure)") {
+        val exit = (Exit.fail(1): IO[Int, Int]).mapBoth(_ - 1, _ + 1)
+        assertTrue(exit == Exit.fail(0))
+      },
+      test("mapErrorCause(success)") {
+        val exit = Exit.succeed(1).mapErrorCause(_ => Cause.fail(2))
+        assertTrue(exit == Exit.succeed(1))
+      },
+      test("mapErrorCause(failure)") {
+        val exit = Exit.fail(1).mapErrorCause(_ => Cause.fail(2))
+        assertTrue(exit == Exit.fail(2))
+      },
+      test("unit") {
+        val exit = Exit.succeed(1).unit
+        assertTrue(exit == Exit.unit)
       }
     )
   )

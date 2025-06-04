@@ -18,6 +18,14 @@ const config = {
   organizationName: 'zio',
   projectName: 'zio',
   themeConfig: {
+    announcementBar: {
+      id: 'announcementBar',
+      content:
+        '📚 <b>ZIONOMICON</b>, updated for ZIO 2.1, is out now! Grab <a href="https://zionomicon.com" target="_blank">your free copy</a> and level up your ZIO skills 🚀',
+      backgroundColor: 'rgb(190, 105, 255)',
+      textColor: 'rgba(220, 173, 240, 1)',
+      isCloseable: false,
+    },
     image: 'https://zio.dev/img/zio.png',
     algolia: {
       // The application ID provided by Algolia
@@ -194,7 +202,7 @@ const config = {
           ],
         },
       ],
-      copyright: `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with <a href="https://v2.docusaurus.io/">Docusaurus v2</a>`,
+      copyright: `Copyright © ${new Date().getFullYear()} ZIO Maintainers - Built with <a href="https://docusaurus.io/">Docusaurus</a>`,
     },
   },
   presets: [
@@ -256,9 +264,7 @@ const config = {
       return {
         name: 'docusaurus-tailwindcss',
         configurePostCss(postcssOptions) {
-          // Appends TailwindCSS and AutoPrefixer.
-          postcssOptions.plugins.push(require('tailwindcss'));
-          postcssOptions.plugins.push(require('autoprefixer'));
+          postcssOptions.plugins.push(require("@tailwindcss/postcss"));
           return postcssOptions;
         },
       };

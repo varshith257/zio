@@ -11,8 +11,8 @@ import scala.scalanative.sbtplugin.ScalaNativePlugin.autoImport.*
 
 object BuildHelper {
   val Scala212: String = "2.12.20"
-  val Scala213: String = "2.13.15"
-  val Scala3: String   = "3.3.4"
+  val Scala213: String = "2.13.16"
+  val Scala3: String   = "3.3.5"
 
   val JdkReleaseVersion: String = "11"
 
@@ -56,9 +56,14 @@ object BuildHelper {
         case "zio-test"    => Nil
         case _             => List("zio.internal.**")
       }
-      // We get some weird errors when trying to inline Scala 2.12 std lib
-      val inlineScala = if (isScala213) Seq("-opt-inline-from:scala.**") else Nil
-      inlineScala ++ Seq(
+      val scala213Flags =
+        if (isScala213)
+          Seq(
+            "-opt-inline-from:scala.**", // We get some weird errors when trying to inline Scala 2.12 std lib
+            "-Ybackend-parallelism:4"
+          )
+        else Nil
+      scala213Flags ++ Seq(
         "-opt:l:method",
         "-opt:l:inline",
         // To remove calls to `assert` in releases. Assertions are level 2000
@@ -172,7 +177,7 @@ object BuildHelper {
       case Some((2, 13)) =>
         List("2.13+", "2.12-2.13")
       case Some((3, _)) =>
-        List("2.13+")
+        List("2.13+", "3")
       case _ =>
         List()
     }
@@ -263,11 +268,13 @@ object BuildHelper {
       else cfg.withGC(GC.boehm) // See https://github.com/scala-native/scala-native/issues/4032
     },
     scalacOptions += "-P:scalanative:genStaticForwardersForNonTopLevelObjects",
-    Test / fork := crossProjectPlatform.value == JVMPlatform // set fork to `true` on JVM to improve log readability, JS and Native need `false`
+    Test / fork := false,
+    bspEnabled  := false
   )
 
   def jsSettings: List[Def.Setting[_]] = List(
-    Test / fork := crossProjectPlatform.value == JVMPlatform // set fork to `true` on JVM to improve log readability, JS and Native need `false`
+    Test / fork := false,
+    bspEnabled  := false
   )
 
   def welcomeMessage = onLoadMessage := {

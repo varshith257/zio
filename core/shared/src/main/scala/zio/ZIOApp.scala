@@ -25,7 +25,8 @@ import java.util.concurrent.atomic.AtomicBoolean
  * applications. For a simpler version that uses the default ZIO environment see
  * `ZIOAppDefault`.
  */
-trait ZIOApp extends ZIOAppPlatformSpecific with ZIOAppVersionSpecific { self =>
+trait ZIOApp extends ZIOAppPlatformSpecific with ZIOAppVersionSpecific {
+  self =>
   private[zio] val shuttingDown = new AtomicBoolean(false)
 
   implicit def environmentTag: EnvironmentTag[Environment]
@@ -48,11 +49,20 @@ trait ZIOApp extends ZIOAppPlatformSpecific with ZIOAppVersionSpecific { self =>
   def run: ZIO[Environment with ZIOAppArgs with Scope, Any, Any]
 
   /**
+   * The time that the application will wait for finalizers to run before
+   * exiting.
+   *
+   * '''NOTE''': This is currently used only for JVM & ScalaNative applications
+   */
+  def gracefulShutdownTimeout: Duration = Duration.Infinity
+
+  /**
    * Composes this [[ZIOApp]] with another [[ZIOApp]], to yield an application
    * that executes the logic of both applications.
    */
   final def <>(that: ZIOApp)(implicit trace: Trace): ZIOApp = {
     def combine[A: EnvironmentTag, B: EnvironmentTag]: EnvironmentTag[A with B] = EnvironmentTag[A with B]
+
     ZIOApp(self.run.zipPar(that.run), self.bootstrap +!+ that.bootstrap)(
       combine[this.Environment, that.Environment](this.environmentTag, that.environmentTag)
     )
@@ -69,10 +79,13 @@ trait ZIOApp extends ZIOAppPlatformSpecific with ZIOAppVersionSpecific { self =>
    * A helper function to exit the application with the specified exit code.
    */
   final def exit(code: ExitCode)(implicit trace: Trace): UIO[Unit] =
-    ZIO.succeed {
-      if (!shuttingDown.getAndSet(true)) {
-        try Platform.exit(code.code)(Unsafe.unsafe)
-        catch { case _: SecurityException => }
+    ZIO.succeed(exitUnsafe(code)(Unsafe))
+
+  protected[zio] def exitUnsafe(code: ExitCode)(implicit unsafe: Unsafe): Unit =
+    if (shuttingDown.compareAndSet(false, true)) {
+      try Platform.exit(code.code)
+      catch {
+        case _: SecurityException =>
       }
     }
 
@@ -95,19 +108,17 @@ trait ZIOApp extends ZIOAppPlatformSpecific with ZIOAppVersionSpecific { self =>
   def runtime: Runtime[Any] = Runtime.default
 
   protected def installSignalHandlers(runtime: Runtime[Any])(implicit trace: Trace): UIO[Any] =
-    ZIO.attempt {
-      if (!ZIOApp.installedSignals.getAndSet(true)) {
+    ZIO.ignore {
+      if (ZIOApp.installedSignals.compareAndSet(false, true)) {
         val dumpFibers =
           () => runtime.unsafe.run(Fiber.dumpAll)(trace, Unsafe.unsafe).getOrThrowFiberFailure()(Unsafe.unsafe)
 
-        if (System.os.isWindows) {
-          Platform.addSignalHandler("INT", dumpFibers)(Unsafe.unsafe)
-        } else {
+        if (!System.os.isWindows) {
           Platform.addSignalHandler("INFO", dumpFibers)(Unsafe.unsafe)
           Platform.addSignalHandler("USR1", dumpFibers)(Unsafe.unsafe)
         }
       }
-    }.ignore
+    }
 }
 
 object ZIOApp {
@@ -119,10 +130,13 @@ object ZIOApp {
    */
   class Proxy(val app: ZIOApp) extends ZIOApp {
     type Environment = app.Environment
+
     final def bootstrap: ZLayer[ZIOAppArgs, Any, Environment] =
       app.bootstrap
+
     override final def run: ZIO[Environment with ZIOAppArgs with Scope, Any, Any] =
       app.run
+
     implicit final def environmentTag: EnvironmentTag[Environment] =
       app.environmentTag
   }
@@ -137,9 +151,12 @@ object ZIOApp {
   )(implicit tagged: EnvironmentTag[R]): ZIOApp =
     new ZIOApp {
       type Environment = R
+
       def environmentTag: EnvironmentTag[Environment] = tagged
-      def bootstrap                                   = bootstrap0
-      def run                                         = run0
+
+      def bootstrap = bootstrap0
+
+      def run = run0
     }
 
   /**

@@ -49,8 +49,15 @@ object LoggingSpec extends ZIOBaseSpec {
         for {
           _      <- ZIO.logSpan("test span")(ZIO.log("It's alive!"))
           output <- ZTestLogger.logOutput
-          _      <- ZIO.debug(output(0).call(ZLogger.default))
+          _       = output(0).call(ZLogger.default)
         } yield assertTrue(true)
+      },
+      test("an empty log size is, at least, 142 characters") {
+        for {
+          _      <- ZIO.logInfo("")
+          output <- ZTestLogger.logOutput
+          logLine = output(0).call(ZLogger.default)
+        } yield assertTrue(logLine.size >= 142)
       },
       test("log annotations") {
         val key   = "key"
@@ -72,5 +79,5 @@ object LoggingSpec extends ZIOBaseSpec {
             assertTrue(output(0).context.get(ref).contains(value))
         )
       }
-    )
+    ) @@ TestAspect.silentLogging
 }

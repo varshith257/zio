@@ -4,6 +4,7 @@ import zio._
 import zio.internal.macros.StringUtils.StringOps
 import zio.test.Assertion.{anything, equalTo, isLeft}
 import zio.test._
+
 import scala.annotation.nowarn
 
 object AutoWireSpec extends ZIOBaseSpec {
@@ -212,6 +213,22 @@ object AutoWireSpec extends ZIOBaseSpec {
               s1 <- ZIO.service[String].provideLayer(tree)
               s2 <- ZIO.service[String].provideLayer(mermaid)
             } yield assertTrue(s1 == "Hello 1!", s2 == "Hello 2!")
+          },
+          test("takes trace from the implicit scope") {
+            var numTraces: Int = 0
+            val layer = {
+              implicit def trace: Trace = {
+                numTraces += 1
+                Trace.empty
+              }
+
+              ZLayer.make[String](
+                ZLayer.succeed(42),
+                ZLayer.fromFunction((_: Int).toString)
+              )
+            }
+
+            assertZIO(layer.build.as(numTraces))(equalTo(3))
           }
         ),
         suite("`ZLayer.makeSome`")(
@@ -231,6 +248,30 @@ object AutoWireSpec extends ZIOBaseSpec {
                 ZLayer.succeed(true) ++ ZLayer.succeed(100.1) >>> layer
               )
             assertZIO(provided)(equalTo(128))
+          },
+          test("displays error message when remainder type does not match") {
+
+            val checked = typeCheck(
+              """
+               class Engine
+               class Wheels
+               class Car
+
+               val carLayer: ZLayer[Engine with Wheels, Nothing, Car] = ???
+               val wheelsLayer: ZLayer[Any, Nothing, Wheels] = ???
+               val layer = ZLayer.makeSome[String, Car](carLayer, wheelsLayer)
+               """
+            )
+
+            assertZIO(checked)(
+              isLeft(
+                containsStringWithoutAnsi("Please provide a layer for the following type:") &&
+                  containsStringWithoutAnsi("Required by carLayer") &&
+                  containsStringWithoutAnsi("1. Engine") &&
+                  containsStringWithoutAnsi("Alternatively, you may add them to the remainder type ascription:") &&
+                  containsStringWithoutAnsi("provideSome[Engine]")
+              )
+            )
           }
         )
       )

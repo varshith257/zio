@@ -36,17 +36,17 @@ private[zio] class WeakConcurrentBag[A <: AnyRef](nurserySize: Int, isAlive: IsA
     def size(): Int
   }
 
-  private final class JvmBag[E] extends AbstractBag[E] {
-    private val set                                 = java.util.concurrent.ConcurrentHashMap.newKeySet[E]()
+  private final class PlatformBag[E](capacity: Int) extends AbstractBag[E] {
+    private val set                                 = Platform.newConcurrentSet[E](capacity)(Unsafe.unsafe)
     override def add(e: E): Unit                    = set.add(e)
     override def removeIf(p: Predicate[E]): Boolean = set.removeIf(p)
     override def iterator(): JIterator[E]           = set.iterator()
     override def size(): Int                        = set.size()
   }
 
-  private final class NativeBag[E] extends AbstractBag[E] {
+  private final class NativeBag[E](capacity: Int) extends AbstractBag[E] {
     private val lock = new ReentrantLock()
-    private val set  = Collections.synchronizedSet(new HashSet[E]())
+    private val set  = Collections.synchronizedSet(new HashSet[E](capacity))
 
     override def add(e: E): Unit = {
       lock.lock()
@@ -69,8 +69,9 @@ private[zio] class WeakConcurrentBag[A <: AnyRef](nurserySize: Int, isAlive: IsA
   }
 
   private[this] val graduates: AbstractBag[WeakReference[A]] =
-    if (Platform.isNative) new NativeBag[WeakReference[A]]()
-    else new JvmBag[WeakReference[A]]()
+    if (Platform.isNative) new NativeBag[WeakReference[A]](nurseryActualSize * 2)
+    else new PlatformBag[WeakReference[A]](nurseryActualSize * 2)
+
   private[this] val gcStatus = new AtomicBoolean(false)
   private[this] val autoGc   = new AtomicBoolean(false)
 

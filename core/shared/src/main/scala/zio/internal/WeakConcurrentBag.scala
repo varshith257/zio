@@ -7,6 +7,8 @@ import java.lang.ref.WeakReference
 import java.util.concurrent.ThreadLocalRandom
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.function.Predicate
+import java.util.concurrent.locks.ReentrantLock
+import java.util.{Collections, HashSet, ArrayList, Iterator => JIterator}
 import scala.annotation.tailrec
 
 /**
@@ -27,9 +29,50 @@ private[zio] class WeakConcurrentBag[A <: AnyRef](nurserySize: Int, isAlive: IsA
   private[this] val nursery           = new PartitionedRingBuffer[WeakReference[A]](nCpu * 4, nurserySize, roundToPow2 = true)
   private[this] val nurseryActualSize = nursery.capacity
 
-  private[this] val graduates = Platform.newConcurrentSet[WeakReference[A]](nurseryActualSize * 2)(Unsafe.unsafe)
-  private[this] val gcStatus  = new AtomicBoolean(false)
-  private[this] val autoGc    = new AtomicBoolean(false)
+  private[internal] trait AbstractBag[E] {
+    def add(e: E): Unit
+    def removeIf(p: Predicate[E]): Boolean
+    def iterator(): JIterator[E]
+    def size(): Int
+  }
+
+  private final class JvmBag[E] extends AbstractBag[E] {
+    private val set                                 = java.util.concurrent.ConcurrentHashMap.newKeySet[E]()
+    override def add(e: E): Unit                    = set.add(e)
+    override def removeIf(p: Predicate[E]): Boolean = set.removeIf(p)
+    override def iterator(): JIterator[E]           = set.iterator()
+    override def size(): Int                        = set.size()
+  }
+
+  private final class NativeBag[E] extends AbstractBag[E] {
+    private val lock = new ReentrantLock()
+    private val set  = Collections.synchronizedSet(new HashSet[E]())
+
+    override def add(e: E): Unit = {
+      lock.lock()
+      try set.add(e)
+      finally lock.unlock()
+    }
+    override def removeIf(p: Predicate[E]): Boolean = {
+      lock.lock()
+      try set.removeIf(p)
+      finally lock.unlock()
+    }
+
+    override def iterator(): JIterator[E] = {
+      lock.lock()
+      val snapshot = new ArrayList[E](set)
+      lock.unlock()
+      snapshot.iterator()
+    }
+    override def size(): Int = set.size()
+  }
+
+  private[this] val graduates: AbstractBag[WeakReference[A]] =
+    if (Platform.isNative) new NativeBag[WeakReference[A]]()
+    else new JvmBag[WeakReference[A]]()
+  private[this] val gcStatus = new AtomicBoolean(false)
+  private[this] val autoGc   = new AtomicBoolean(false)
 
   private[this] val notAlive = new Predicate[WeakReference[A]] {
     def test(ref: WeakReference[A]): Boolean = {

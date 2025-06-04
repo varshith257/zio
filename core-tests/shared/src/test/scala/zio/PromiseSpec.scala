@@ -1,6 +1,7 @@
 package zio
 
 import zio.test.Assertion._
+import zio.test.TestAspect.nonFlaky
 import zio.test._
 
 object PromiseSpec extends ZIOBaseSpec {
@@ -133,7 +134,7 @@ object PromiseSpec extends ZIOBaseSpec {
         _      <- p.complete(Exit.unit)
         _      <- ZIO.foreach(fibers)(_.await)
       } yield assertCompletes
-    },
+    } @@ nonFlaky(100),
     suite("State")(
       suite("add")(
         test("stack safety") {

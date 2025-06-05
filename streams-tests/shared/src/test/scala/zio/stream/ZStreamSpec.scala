@@ -595,6 +595,44 @@ object ZStreamSpec extends ZIOBaseSpec {
                 .exit
             )(fails(equalTo(e)))
           },
+            test("buffer(1) truly only prefetches 1 element") {
+    for {
+      log <- Ref.make(Vector.empty[String])
+
+      def fakeNetworkCall(n: Int): ZIO[Clock, Nothing, String] =
+        for {
+          _ <- log.update(_ :+ s"Starting request $n")
+          _ <- ZIO.sleep(1.second)
+          _ <- log.update(_ :+ s"Completed request $n")
+        } yield s"Response $n"
+
+      val program = ZStream
+                      .fromIterator(Iterator.from(1))
+                      .mapZIO(fakeNetworkCall)
+                      .buffer(1)
+                      .mapZIO { response =>
+                        ZIO.sleep(100.minutes) *> ZIO.succeed(response)
+                      }
+                      .runDrain
+
+      fiber     <- program.fork
+      _         <- TestClock.adjust(1.second)
+
+      snapshot1 <- log.get
+      _         <- TestClock.adjust(1.second)
+
+      snapshot2 <- log.get
+      _         <- fiber.interrupt
+    } yield assert(snapshot1)(
+      equalTo(Vector(
+        "Starting request 1",
+        "Completed request 1",
+        "Starting request 2"
+      ))
+    ) && assert(snapshot2)(
+      not(contains("Starting request 3"))
+    )
+  },
           test("fast producer progress independently") {
             for {
               ref   <- Ref.make(List[Int]())

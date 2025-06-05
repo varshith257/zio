@@ -35,7 +35,7 @@ jobs:
     - name: Cache scala dependencies
       uses: coursier/cache-action@v6
     - name: Lint code
-      run: sbt "++2.13; fmt; ++3.3; fmt"
+      run: sbt "++2.13; check; ++3.3; check"
 
   publishLocal:
     runs-on: ubuntu-latest

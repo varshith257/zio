@@ -382,6 +382,81 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
     } yield subscriber
 
   /**
+   * `buffer(1)` specialized implementation using a single‐slot "handoff" (i.e.
+   * an async equivalent of java.util.concurrent.SynchronousQueue). This ensures
+   * that upstream will never produce the second element until downstream has
+   * taken the first.
+   */
+  private def bufferOne(implicit trace: Trace): ZStream[R, E, A] =
+    ZStream.unwrapScopedWith { scope =>
+      for {
+        handoff <- ZStream.Handoff.make[Either[Cause[E], A]]
+        _ <- {
+          val sourceElements: ZChannel[R, E, Chunk[A], Any, E, Chunk[A], Any] =
+            self.channel
+          def producerChannel: ZChannel[R, E, Chunk[A], Any, Nothing, Nothing, Any] =
+            ZChannel.readWithCause[R, E, Chunk[A], Any, Nothing, Nothing, Any](
+              (in: Chunk[A]) =>
+                ZChannel.fromZIO {
+                  ZIO.foreachDiscard(in.toList) { a =>
+                    handoff.offer(Right(a)).unit
+                  }
+                } *> producerChannel,
+              (cause: Cause[E]) =>
+                ZChannel.fromZIO(
+                  handoff.offer(Left(cause)) *>
+                    ZIO.fail(cause)
+                ),
+              (_: Any) => ZChannel.fromZIO(handoff.offer(Left(Cause.empty)))
+            )
+
+          (sourceElements >>> producerChannel).runDrain.forkIn(scope)
+        }
+      } yield {
+        def consumer: ZChannel[Any, Any, Any, Any, E, Chunk[A], Any] =
+          ZChannel.fromZIO(handoff.take).flatMap {
+            case Right(a) =>
+              ZChannel.write(Chunk.single(a)) *> consumer
+
+            case Left(cause) =>
+              if (cause.isEmpty) ZChannel.unit
+              else ZChannel.refailCause(cause)
+          }
+        new ZStream(consumer)
+      }
+    }
+
+  /**
+   * `buffer(n)` for n > 1 uses a bounded queue of size (n - 1). That way, at
+   * most `n` total elements (1 in flight + (n-1) queued) can accumulate.
+   * Upstream `offer` will suspend once the queue is full until the consumer
+   * drains one element.
+   */
+  private def bufferN(n: Int)(implicit trace: Trace): ZStream[R, E, A] = {
+    val queue = self.toQueueOfElements(n - 1)
+
+    new ZStream(
+      ZChannel.unwrapScoped {
+        queue.map { q =>
+          lazy val process: ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit] =
+            ZChannel.fromZIO(q.take).flatMap { exit: Exit[Option[E], A] =>
+              exit.foldExit(
+                Cause
+                  .flipCauseOption(_)
+                  .fold[ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit]](
+                    ZChannel.unit
+                  )(ZChannel.refailCause),
+                value => ZChannel.write(Chunk.single(value)) *> process
+              )
+            }
+
+          process
+        }
+      }
+    )
+  }
+
+  /**
    * Allows a faster producer to progress independently of a slower consumer by
    * buffering up to `capacity` elements in a queue.
    *
@@ -392,79 +467,8 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
    */
   def buffer(capacity: => Int)(implicit trace: Trace): ZStream[R, E, A] = {
     val n = capacity
-
-    // Special‐case `buffer(1)` → use a synchronous handoff (zero‐capacity queue)
-    if (n <= 1) {
-      // Implementation for buffer(1): single‐Promise handoff so that
-      // upstream cannot send the next element until downstream has consumed.
-      def bufferOne: ZStream[R, E, A] =
-        ZStream.unwrapScopedWith[R] { scope =>
-          for {
-            handoff <- Promise.make[Option[E], A]
-            _ <- {
-              val sourceElements: ZChannel[R, E, Chunk[A], Any, E, Chunk[A], Any] =
-                self.channel
-
-              def producerChannel: ZChannel[R, E, Chunk[A], Any, Nothing, Nothing, Any] =
-                ZChannel.readWithCause[R, E, Chunk[A], Any, Nothing, Nothing, Any](
-                  (in: Chunk[A]) => {
-                    ZChannel.fromZIO {
-                      ZIO.foreachDiscard(in.toList) { a =>
-                        for {
-                          _ <- handoff.awaitUntil(_ => !_.isSuccess).orDie
-                          _ <- handoff.succeed(a)
-                        } yield ()
-                      }
-                    } *> producerChannel
-                  },
-                  (cause: Cause[E]) => ZChannel.fromZIO(handoff.fail(Some(cause.mapErrorOption(identity)))),
-                  (_: Any) => ZChannel.fromZIO(handoff.fail(None))
-                )
-
-              (sourceElements >>> producerChannel).runDrain.forkIn(scope)
-            }
-          } yield {
-            def consumer(current: Promise[Option[E], A]): ZChannel[Any, Any, Any, Any, E, Chunk[A], Any] =
-              ZChannel.unwrap {
-                current.await.foldZIO(
-                  {
-                    case None      => ZIO.succeed(ZChannel.unit)
-                    case Some(err) => ZIO.succeed(ZChannel.refailCause(err))
-                  },
-                  a =>
-                    for {
-                      next <- Promise.make[Option[E], A]
-                    } yield ZChannel.write(Chunk.single(a)) *> consumer(next)
-                )
-              }
-
-            new ZStream(consumer(handoff))
-          }
-        }
-
-      bufferOne
-    } else {
-      val queue = self.toQueueOfElements(n - 1)
-      new ZStream(
-        ZChannel.unwrapScoped[R] {
-          queue.map { queue =>
-            lazy val process: ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit] =
-              ZChannel.fromZIO {
-                queue.take
-              }.flatMap { (exit: Exit[Option[E], A]) =>
-                exit.foldExit(
-                  Cause
-                    .flipCauseOption(_)
-                    .fold[ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit]](ZChannel.unit)(ZChannel.refailCause),
-                  value => ZChannel.write(Chunk.single(value)) *> process
-                )
-              }
-
-            process
-          }
-        }
-      )
-    }
+    if (n <= 1) bufferOne
+    else bufferN(n)
   }
 
   /**

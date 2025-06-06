@@ -394,7 +394,24 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
     val n = capacity
 
     if (n <= 1) {
-      self.flatMap(a => ZStream.succeed(a))
+      // true capacity=1: queue size = 1
+      val queue = self.toQueueOfElements(1)
+      new ZStream(
+        ZChannel.unwrapScoped[R] {
+          queue.map { q =>
+            lazy val process: ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit] =
+              ZChannel.fromZIO(q.take).flatMap { (exit: Exit[Option[E], A]) =>
+                exit.foldExit(
+                  Cause
+                    .flipCauseOption(_)
+                    .fold[ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit]](ZChannel.unit)(ZChannel.refailCause),
+                  value => ZChannel.write(Chunk.single(value)) *> process
+                )
+              }
+            process
+          }
+        }
+      )
     } else {
       val queue = self.toQueueOfElements(n - 1)
       new ZStream(

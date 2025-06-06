@@ -394,9 +394,8 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
     val n = capacity
 
     if (n <= 1) {
-      self.flatMapChunks(chunk => ZStream.fromChunk(chunk))
+      self.flatMap(a => ZStream.succeed(a))
     } else {
-
       val queue = self.toQueueOfElements(n - 1)
       new ZStream(
         ZChannel.unwrapScoped[R] {

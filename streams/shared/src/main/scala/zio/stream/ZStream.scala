@@ -391,125 +391,27 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
    *   Prefer capacities that are powers of 2 for better performance.
    */
   def buffer(capacity: => Int)(implicit trace: Trace): ZStream[R, E, A] = {
-    val n = capacity
-
-    if (n <= 1) {
-      //
-      // == “Synchronous queue” via Handoff ==
-      //
-      // A zero-capacity buffer: we create one single‐slot Handoff[Either[Cause[E], A]].
-      //   - The producer will read exactly one element at a time from `self`,
-      //     then do `handoff.offer(Right(a))`, blocking until the consumer does `take`.
-      //   - If the producer (upstream) fails, it does `handoff.offer(Left(cause))`.
-      //   - If the upstream ends normally, it does `handoff.offer(Left(None))` to signal “end-of-stream.”
-      //
-      // The consumer repeatedly does `handoff.take`.  If it sees:
-      //   • Right(a)       ⇒ write `a` downstream, then loop
-      //   • Left(Some(err)) ⇒ re-fail with that `err`
-      //   • Left(None)     ⇒ end‐of‐stream
-      //
-      // Because `handoff.offer` blocks until `handoff.take` happens, there is never any “queued” element.
-      // As soon as the consumer takes element 1, the producer can start request 2.  That enforces a true
-      // capacity-1 behavior (no off-by-ones).
-      //
-      ZStream.suspend {
-        ZStream.fromZIO {
-          ZIO.runtime[R].flatMap { runtime =>
-            ZIO.scoped[R] {
-              for {
-                // 1) Create a single‐slot handoff
-                handoff <- Handoff.make[Either[Cause[E], A]]
-
-                // 2) Fork the “producer” fiber:
-                //    It just reads from `self`’s channel, one chunk at a time, breaks it into single A’s,
-                //    and does `handoff.offer(Right(a))`.  If upstream fails, it does Left(cause).  If ends,
-                //    it does Left(None).
-                _ <- {
-                  // “Read all incoming chunks of A, emit individual A’s.”
-                  val sourceElemChannel: ZChannel[R, E, Chunk[A], Any, E, Chunk[A], Any] =
-                    self.channel
-
-                  // A channel that, for each incoming Chunk[A], loops over its elements `a`
-                  // and does `handoff.offer(Right(a))`.  When upstream fails or ends, it offers Left(cause).
-                  def producerChannel: ZChannel[R, E, Chunk[A], Any, Nothing, Nothing, Any] =
-                    ZChannel.readWithCause[R, E, Chunk[A], Any, Nothing, Nothing, Any](
-                      (in: Chunk[A]) =>
-                        // For each element `a` in the chunk:
-                        ZChannel.fromZIO {
-                          ZIO.foreachDiscard(in.toList) { a =>
-                            // Block until consumer does `take`, then offer `Right(a)`.
-                            handoff.offer(Right(a))
-                          }
-                        } *> producerChannel,
-
-                      // Upstream failed with `cause`; offer `Left(cause)` so consumer will see failure.
-                      (cause: Cause[E]) => ZChannel.fromZIO(handoff.offer(Left(cause))),
-
-                      // Upstream ended normally; offer `Left(None)` to signal “end‐of‐stream.”
-                      (_: Any) => ZChannel.fromZIO(handoff.offer(Left(Cause.fail(None.asInstanceOf[E]))))
-                    )
-
-                  // Run “sourceElemChannel >>> producerChannel” in a scoped fork
-                  (sourceElemChannel >>> producerChannel).runDrain.forkScoped
-                }
-              } yield {
-                //
-                // 3) Build a new ZStream whose channel is:
-                //       - Unwrap a ZIO-supplied `pullOne: UIO[Chunk[A]]` that does `handoff.take`.
-                //       - Then loop: write one `Chunk.single(a)` each time.
-                //
-                def pullOne: ZIO[R, Option[E], Chunk[A]] =
-                  ZIO.uninterruptible {
-                    handoff.take.flatMap {
-                      case Right(a)    => ZIO.succeed(Chunk.single(a))
-                      case Left(cause) =>
-                        // If `cause` was Left(None) → stream ended normally: translate to `ZIO.fail(None)`.
-                        // If `cause` was Left(Some(err)) → typed error: `fail(Some(err))`.
-                        // If `cause` was a die, propagate via `die`.
-                        cause.failureOrCause match {
-                          case Left(None)      => ZIO.fail(None)
-                          case Left(Some(err)) => ZIO.fail(Some(err))
-                          case Right(dieCause) => ZIO.die(dieCause)
-                        }
-                    }
-                  }
-
-                new ZStream(
-                  // Build a channel that, on each pull,
-                  // does `pullOne` → write the single‐element chunk → loop.
-                  ZChannel.fromZIO(ZIO.succeed(pullOne)).flatMap { pull =>
-                    def loop: ZChannel[R, E, Any, Any, E, Chunk[A], Any] =
-                      ZChannel.writeChunkZIO(pull).flatMap(_ => loop)
-
-                    loop
-                  }
-                )
-              }
+    val n         = capacity
+    val queueSize = if (n <= 1) 0 else n - 1
+    val queue     = self.toQueueOfElements(queueSize)
+    new ZStream(
+      ZChannel.unwrapScoped[R] {
+        queue.map { queue =>
+          lazy val process: ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit] =
+            ZChannel.fromZIO {
+              queue.take
+            }.flatMap { (exit: Exit[Option[E], A]) =>
+              exit.foldExit(
+                Cause
+                  .flipCauseOption(_)
+                  .fold[ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit]](ZChannel.unit)(ZChannel.refailCause),
+                value => ZChannel.write(Chunk.single(value)) *> process
+              )
             }
-          }
+          process
         }
       }
-    } else {
-      val queue = self.toQueueOfElements(n - 1)
-      new ZStream(
-        ZChannel.unwrapScoped[R] {
-          queue.map { queue =>
-            lazy val process: ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit] =
-              ZChannel.fromZIO {
-                queue.take
-              }.flatMap { (exit: Exit[Option[E], A]) =>
-                exit.foldExit(
-                  Cause
-                    .flipCauseOption(_)
-                    .fold[ZChannel[Any, Any, Any, Any, E, Chunk[A], Unit]](ZChannel.unit)(ZChannel.refailCause),
-                  value => ZChannel.write(Chunk.single(value)) *> process
-                )
-              }
-            process
-          }
-        }
-      )
-    }
+    )
   }
 
   /**

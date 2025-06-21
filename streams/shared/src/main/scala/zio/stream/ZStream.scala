@@ -391,7 +391,9 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
    *   Prefer capacities that are powers of 2 for better performance.
    */
   def buffer(capacity: => Int)(implicit trace: Trace): ZStream[R, E, A] = {
-    val queue = self.toQueueOfElements(capacity)
+    val n         = capacity
+    val queueSize = if (n <= 1) 0 else n - 1
+    val queue     = self.toQueueOfElements(queueSize)
     new ZStream(
       ZChannel.unwrapScoped[R] {
         queue.map { queue =>
@@ -406,7 +408,6 @@ final class ZStream[-R, +E, +A] private (val channel: ZChannel[R, Any, Any, Any,
                 value => ZChannel.write(Chunk.single(value)) *> process
               )
             }
-
           process
         }
       }
